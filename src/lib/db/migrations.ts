@@ -253,6 +253,15 @@ const migrations: Migration[] = [
       CREATE INDEX idx_baixas_data ON baixas (data_baixa);
     `,
   },
+  {
+    versao: 9,
+    nome: "margem_lucro_insumo",
+    sql: `
+      -- Margem de lucro (%) opcional do insumo, usada só na venda: o insumo extra entra no preço com a margem.
+      -- NULL = sem margem (não mexe no preço da venda).
+      ALTER TABLE insumos ADD COLUMN margem_lucro_percentual REAL CHECK (margem_lucro_percentual >= 0);
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

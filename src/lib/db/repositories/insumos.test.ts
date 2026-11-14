@@ -168,6 +168,13 @@ describe("insumos: editar", () => {
     expect(atualizado?.custo_unitario_centavos).toBe(1050);
   });
 
+  it("margem de lucro: grava no cadastro, altera e tira na edição", () => {
+    const { id, margem_lucro_percentual } = criarInsumo(novo({ margem_lucro_percentual: 50 }));
+    expect(margem_lucro_percentual).toBe(50);
+    expect(atualizarInsumo(id, { nome: "Trufa", quantidade_estoque: 1, observacao: null, margem_lucro_percentual: 33.5 })?.margem_lucro_percentual).toBe(33.5);
+    expect(atualizarInsumo(id, { nome: "Trufa", quantidade_estoque: 1, observacao: null, margem_lucro_percentual: null })?.margem_lucro_percentual).toBeNull();
+  });
+
   it("permite manter o próprio nome (mudando só maiúsculas)", () => {
     const { id } = criarInsumo(novo());
     expect(atualizarInsumo(id, { nome: "CANECA BRANCA 325ML", quantidade_estoque: 0, observacao: null })?.nome).toBe(

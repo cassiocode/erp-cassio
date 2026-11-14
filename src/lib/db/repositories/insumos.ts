@@ -9,6 +9,7 @@ export interface Insumo {
   nome: string;
   quantidade_estoque: number; // pode ser negativa
   observacao: string | null;
+  margem_lucro_percentual: number | null; // usada só na venda; null = sem margem
   ativo: number; // 1 = ativo, 0 = inativo
   criado_em: string;
   atualizado_em: string;
@@ -25,6 +26,7 @@ export interface DadosNovoInsumo {
   quantidade_comprada: number;
   data_compra: string; // AAAA-MM-DD
   observacao: string | null;
+  margem_lucro_percentual?: number | null;
 }
 
 /** Edição: total pago e quantidade mudam só pelas compras. */
@@ -32,6 +34,7 @@ export interface DadosEdicaoInsumo {
   nome: string;
   quantidade_estoque: number;
   observacao: string | null;
+  margem_lucro_percentual?: number | null; // ausente = sem margem
 }
 
 export interface FiltrosInsumos {
@@ -102,10 +105,10 @@ export function criarInsumo(dados: DadosNovoInsumo): Insumo {
     const id = transacao(() => {
       const resultado = getDb()
         .prepare(
-          `INSERT INTO insumos (nome, quantidade_estoque, observacao, ativo, criado_em, atualizado_em)
-           VALUES (?, 0, ?, 1, ?, ?)`,
+          `INSERT INTO insumos (nome, quantidade_estoque, observacao, margem_lucro_percentual, ativo, criado_em, atualizado_em)
+           VALUES (?, 0, ?, ?, 1, ?, ?)`,
         )
-        .run(dados.nome, dados.observacao, agora, agora);
+        .run(dados.nome, dados.observacao, dados.margem_lucro_percentual ?? null, agora, agora);
       const novoId = Number(resultado.lastInsertRowid);
       inserirCompra(novoId, {
         data_compra: dados.data_compra,
@@ -128,8 +131,18 @@ export function atualizarInsumo(id: number, dados: DadosEdicaoInsumo): Insumo | 
 
   try {
     getDb()
-      .prepare("UPDATE insumos SET nome = ?, quantidade_estoque = ?, observacao = ?, atualizado_em = ? WHERE id = ?")
-      .run(dados.nome, dados.quantidade_estoque, dados.observacao, new Date().toISOString(), id);
+      .prepare(
+        `UPDATE insumos SET nome = ?, quantidade_estoque = ?, observacao = ?, margem_lucro_percentual = ?, atualizado_em = ?
+          WHERE id = ?`,
+      )
+      .run(
+        dados.nome,
+        dados.quantidade_estoque,
+        dados.observacao,
+        dados.margem_lucro_percentual ?? null,
+        new Date().toISOString(),
+        id,
+      );
   } catch (erro) {
     if (ehViolacaoDeUnico(erro)) throw new NomeDuplicadoError(MENSAGEM_DUPLICADO);
     throw erro;
