@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CUSTO_ENERGIA_CENTAVOS, formatarMargem, precoComMargem } from "@/lib/custos";
 import { buscarFaltas, textoAlertaFaltas } from "@/lib/alertas";
 import { hojeISO } from "@/lib/datas";
@@ -111,6 +111,7 @@ export default function FormVenda({
   const [novoInsumo, setNovoInsumo] = useState("");
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  const resumoErrosRef = useRef<HTMLDivElement>(null);
 
   const porId = new Map(insumos.map((i) => [i.id, i]));
   const custoInsumos = itens.reduce((soma, item) => {
@@ -240,13 +241,36 @@ export default function FormVenda({
         return;
       }
       const corpo = await resposta.json().catch(() => null);
-      setErros(corpo?.erros ?? { geral: "Erro ao salvar a venda." });
+      mostrarErros(
+        corpo?.erros ?? {
+          geral: `Erro no servidor ao salvar (código ${resposta.status}). Veja o terminal do npm run dev e tente de novo.`,
+        },
+      );
     } catch {
-      setErros({ geral: "Não foi possível conectar ao servidor." });
+      mostrarErros({ geral: "Não foi possível conectar ao servidor. O npm run dev está rodando?" });
     } finally {
       setEnviando(false);
     }
   }
+
+  /** Mostra os erros e rola a tela até o resumo, perto do botão de salvar. */
+  function mostrarErros(novos: Record<string, string>) {
+    setErros(novos);
+    requestAnimationFrame(() => resumoErrosRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+
+  // Nome amigável de cada campo no resumo de erros
+  const ROTULOS: Record<string, string> = {
+    status: "Tipo",
+    data_prevista: "Entrega prevista",
+    data_venda: "Data",
+    kits: "Canecas",
+    desconto_percentual: "Desconto",
+    cliente: "Cliente",
+    preco_venda: "Preço de venda",
+    itens: "Insumos",
+    observacao: "Observação",
+  };
 
   // Faltas da pré-venda gravada, só dos itens que continuam nela
   const semMaterial = itens
@@ -259,7 +283,6 @@ export default function FormVenda({
 
   return (
     <form onSubmit={enviar} className="max-w-3xl space-y-5 rounded border border-gray-200 bg-white p-5">
-      {erros.geral && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{erros.geral}</p>}
 
       <div>
         <span className="mb-2 block text-sm font-medium">Tipo</span>
@@ -521,7 +544,13 @@ export default function FormVenda({
         {status !== "concluida" && (
           <label className="block text-sm">
             <span className="mb-1 block font-medium">Entrega prevista{status === "pre_venda" ? " *" : ""}</span>
-            <input type="date" value={dataPrevista} onChange={(e) => setDataPrevista(e.target.value)} className={campo} />
+            <input
+              type="date"
+              value={dataPrevista}
+              onChange={(e) => setDataPrevista(e.target.value)}
+              required={status === "pre_venda"}
+              className={`${campo} ${erros.data_prevista ? "border-red-500 ring-1 ring-red-400" : ""}`}
+            />
             {mensagem("data_prevista")}
           </label>
         )}
@@ -554,6 +583,24 @@ export default function FormVenda({
         />
         {mensagem("observacao")}
       </label>
+
+      {Object.keys(erros).length > 0 && (
+        <div
+          ref={resumoErrosRef}
+          role="alert"
+          className="rounded border-2 border-red-400 bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+          <strong>Não foi possível salvar. Corrija:</strong>
+          <ul className="mt-1 list-disc pl-5">
+            {Object.entries(erros).map(([campo, msg]) => (
+              <li key={campo}>
+                {ROTULOS[campo] ? <span className="font-medium">{ROTULOS[campo]}: </span> : null}
+                {msg}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button
