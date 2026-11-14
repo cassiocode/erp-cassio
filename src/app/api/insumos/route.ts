@@ -3,7 +3,7 @@ import { lerCorpo, respostaErros } from "@/lib/api";
 import { NomeDuplicadoError } from "@/lib/db/erros";
 import { criarInsumo, listarInsumos } from "@/lib/db/repositories/insumos";
 import { errosPorCampo } from "@/lib/schemas/comum";
-import { insumoSchema } from "@/lib/schemas/insumos";
+import { novoInsumoSchema } from "@/lib/schemas/insumos";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +19,9 @@ export function GET(request: Request) {
   return NextResponse.json(insumos);
 }
 
-// POST /api/insumos
+// POST /api/insumos — cria o insumo e registra a primeira compra
 export async function POST(request: Request) {
-  const resultado = insumoSchema.safeParse(await lerCorpo(request));
+  const resultado = novoInsumoSchema.safeParse(await lerCorpo(request));
   if (!resultado.success) return respostaErros(errosPorCampo(resultado.error), 400);
 
   try {

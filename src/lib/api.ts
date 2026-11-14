@@ -12,8 +12,8 @@ export function respostaErros(erros: Record<string, string>, status: number) {
 
 export const respostaIdInvalido = () => respostaErros({ geral: "ID inválido" }, 400);
 
-export const respostaNaoEncontrado = (oque: string) =>
-  respostaErros({ geral: `${oque} não encontrado` }, 404);
+export const respostaNaoEncontrado = (oque: string, genero: "o" | "a" = "o") =>
+  respostaErros({ geral: `${oque} não encontrad${genero}` }, 404);
 
 /** Lê o corpo JSON; devolve {} se vier vazio ou inválido (o zod reporta os campos faltando). */
 export async function lerCorpo(request: Request): Promise<unknown> {

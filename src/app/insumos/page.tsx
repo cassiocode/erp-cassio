@@ -61,9 +61,8 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
           <thead className="border-b border-gray-200 bg-gray-100 text-gray-600">
             <tr>
               <th className="px-3 py-2">Nome</th>
-              <th className="px-3 py-2 text-right">Total pago</th>
-              <th className="px-3 py-2 text-right">Qtd. comprada</th>
-              <th className="px-3 py-2 text-right">Custo por unidade</th>
+              <th className="px-3 py-2 text-right">Custo médio</th>
+              <th className="px-3 py-2 text-right">Comprados</th>
               <th className="px-3 py-2 text-right">Em estoque</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2 text-right">Ações</th>
@@ -72,7 +71,7 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
           <tbody>
             {insumos.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={6}className="px-3 py-6 text-center text-gray-500">
                   Nenhum insumo encontrado.
                 </td>
               </tr>
@@ -83,9 +82,10 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
                   <div className="font-medium">{i.nome}</div>
                   {i.observacao && <div className="text-xs text-gray-500">{i.observacao}</div>}
                 </td>
-                <td className="px-3 py-2 text-right">{formatarReais(i.valor_pago_centavos)}</td>
+                <td className="px-3 py-2 text-right font-medium">
+                  {i.custo_unitario_centavos === null ? "—" : formatarReais(i.custo_unitario_centavos)}
+                </td>
                 <td className="px-3 py-2 text-right">{i.quantidade_comprada}</td>
-                <td className="px-3 py-2 text-right font-medium">{formatarReais(i.custo_unitario_centavos)}</td>
                 <td
                   className={`px-3 py-2 text-right ${i.quantidade_estoque < 0 ? "font-medium text-red-600" : ""}`}
                 >

@@ -3,7 +3,7 @@ import { lerCorpo, lerId, respostaErros, respostaIdInvalido, respostaNaoEncontra
 import { NomeDuplicadoError } from "@/lib/db/erros";
 import { atualizarInsumo, buscarInsumoPorId, definirInsumoAtivo } from "@/lib/db/repositories/insumos";
 import { ativoSchema, errosPorCampo } from "@/lib/schemas/comum";
-import { insumoSchema } from "@/lib/schemas/insumos";
+import { edicaoInsumoSchema } from "@/lib/schemas/insumos";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +17,12 @@ export async function GET(_request: Request, { params }: Contexto) {
   return insumo ? NextResponse.json(insumo) : respostaNaoEncontrado("Insumo");
 }
 
-// PUT /api/insumos/:id — atualiza todos os campos editáveis
+// PUT /api/insumos/:id — nome, estoque e observação (total pago e quantidade mudam pelas compras)
 export async function PUT(request: Request, { params }: Contexto) {
   const id = lerId((await params).id);
   if (id === null) return respostaIdInvalido();
 
-  const resultado = insumoSchema.safeParse(await lerCorpo(request));
+  const resultado = edicaoInsumoSchema.safeParse(await lerCorpo(request));
   if (!resultado.success) return respostaErros(errosPorCampo(resultado.error), 400);
 
   try {

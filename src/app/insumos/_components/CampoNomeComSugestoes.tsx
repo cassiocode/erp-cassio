@@ -8,13 +8,13 @@ import { filtrarPorNome, normalizarTexto } from "@/lib/texto";
 export interface SugestaoInsumo {
   id: number;
   nome: string;
-  custo_unitario_centavos: number;
+  custo_unitario_centavos: number | null;
   ativo: number;
 }
 
 /**
  * Campo Nome do novo insumo com lista dos insumos já cadastrados, filtrada enquanto digita.
- * Escolher um item abre a edição dele (evita cadastrar o mesmo insumo duas vezes).
+ * Escolher um item abre as compras dele, para lançar uma nova compra em vez de cadastrar de novo.
  */
 export default function CampoNomeComSugestoes({
   valor,
@@ -77,7 +77,7 @@ export default function CampoNomeComSugestoes({
       />
 
       {jaExiste && (
-        <p className="mt-1 text-xs text-amber-700">Já existe um insumo com este nome. Escolha-o na lista para editar.</p>
+        <p className="mt-1 text-xs text-amber-700">Já existe um insumo com este nome. Escolha-o na lista para lançar uma nova compra.</p>
       )}
 
       {mostrarLista && (
@@ -87,7 +87,7 @@ export default function CampoNomeComSugestoes({
           className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded border border-gray-200 bg-white text-sm shadow-lg"
         >
           <li className="border-b border-gray-100 px-3 py-1.5 text-xs text-gray-500">
-            Já cadastrados ({filtradas.length}) — clique para editar
+            Já cadastrados ({filtradas.length}) — clique para lançar uma nova compra
           </li>
           {filtradas.map((s, indice) => (
             <li
@@ -108,7 +108,9 @@ export default function CampoNomeComSugestoes({
                 {s.nome}
                 {!s.ativo && " (inativo)"}
               </span>
-              <span className="text-gray-500">{formatarReais(s.custo_unitario_centavos)} / un</span>
+              {s.custo_unitario_centavos !== null && (
+                <span className="text-gray-500">{formatarReais(s.custo_unitario_centavos)} / un</span>
+              )}
             </li>
           ))}
         </ul>

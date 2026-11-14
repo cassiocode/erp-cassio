@@ -1,64 +1,66 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { custoPorUnidade, formatarReais, paraCentavos } from "@/lib/dinheiro";
+import { hojeISO } from "@/lib/datas";
+import { formatarReais } from "@/lib/dinheiro";
+import CamposCompra, { type ValoresCompra } from "./CamposCompra";
 import CampoNomeComSugestoes, { type SugestaoInsumo } from "./CampoNomeComSugestoes";
 
-export interface ValoresInsumo {
+/** Dados já gravados do insumo, para a tela de edição. */
+export interface InsumoEmEdicao {
+  id: number;
   nome: string;
-  valor_pago: string; // texto, ex.: "126,00"
-  quantidade_comprada: string;
-  quantidade_estoque: string;
-  observacao: string;
+  quantidade_estoque: number;
+  observacao: string | null;
+  custo_unitario_centavos: number | null;
+  quantidade_comprada: number;
 }
 
-export const VALORES_VAZIOS: ValoresInsumo = {
-  nome: "",
-  valor_pago: "",
-  quantidade_comprada: "1",
-  quantidade_estoque: "0",
-  observacao: "",
-};
+const campo =
+  "w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";
 
-/** Custo por unidade para mostrar enquanto digita; null se ainda não dá para calcular. */
-function previaCusto(valorPago: string, quantidade: string): number | null {
-  const centavos = paraCentavos(valorPago);
-  const qtd = Number(quantidade);
-  if (centavos === null || !Number.isInteger(qtd) || qtd < 1) return null;
-  return custoPorUnidade(centavos, qtd);
-}
-
+/**
+ * Formulário de insumo.
+ * - Novo: nome + primeira compra (data, total pago, quantidade). O estoque começa com a quantidade comprada.
+ * - Edição: nome, estoque e observação. Total pago e quantidade mudam pela tela de compras.
+ */
 export default function FormInsumo({
-  id,
-  valores = VALORES_VAZIOS,
+  insumo,
   sugestoes,
 }: {
-  id?: number; // se vier, é edição
-  valores?: ValoresInsumo;
+  insumo?: InsumoEmEdicao; // se vier, é edição
   sugestoes?: SugestaoInsumo[]; // insumos já cadastrados, para o campo Nome do cadastro novo
 }) {
   const router = useRouter();
-  const [form, setForm] = useState(valores);
+  const [nome, setNome] = useState(insumo?.nome ?? "");
+  const [observacao, setObservacao] = useState(insumo?.observacao ?? "");
+  const [estoque, setEstoque] = useState(String(insumo?.quantidade_estoque ?? 0));
+  const [compra, setCompra] = useState<ValoresCompra>({ data_compra: hojeISO(), valor_pago: "", quantidade: "1" });
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
-
-  const custo = previaCusto(form.valor_pago, form.quantidade_comprada);
-
-  function atualizar(campo: keyof ValoresInsumo, valor: string) {
-    setForm((atual) => ({ ...atual, [campo]: valor }));
-  }
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
     setEnviando(true);
     setErros({});
 
+    const corpo = insumo
+      ? { nome, quantidade_estoque: estoque, observacao }
+      : {
+          nome,
+          observacao,
+          data_compra: compra.data_compra,
+          valor_pago: compra.valor_pago,
+          quantidade_comprada: compra.quantidade,
+        };
+
     try {
-      const resposta = await fetch(id ? `/api/insumos/${id}` : "/api/insumos", {
-        method: id ? "PUT" : "POST",
+      const resposta = await fetch(insumo ? `/api/insumos/${insumo.id}` : "/api/insumos", {
+        method: insumo ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(corpo),
       });
 
       if (resposta.ok) {
@@ -66,8 +68,8 @@ export default function FormInsumo({
         router.refresh();
         return;
       }
-      const corpo = await resposta.json().catch(() => null);
-      setErros(corpo?.erros ?? { geral: "Erro ao salvar o insumo." });
+      const resultado = await resposta.json().catch(() => null);
+      setErros(resultado?.erros ?? { geral: "Erro ao salvar o insumo." });
     } catch {
       setErros({ geral: "Não foi possível conectar ao servidor." });
     } finally {
@@ -75,10 +77,8 @@ export default function FormInsumo({
     }
   }
 
-  const campo =
-    "w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";
-  const mensagem = (nome: string) =>
-    erros[nome] ? <p className="mt-1 text-xs text-red-600">{erros[nome]}</p> : null;
+  const mensagem = (campoApi: string) =>
+    erros[campoApi] ? <p className="mt-1 text-xs text-red-600">{erros[campoApi]}</p> : null;
 
   return (
     <form onSubmit={enviar} className="max-w-2xl space-y-4 rounded border border-gray-200 bg-white p-5">
@@ -87,78 +87,57 @@ export default function FormInsumo({
       <label className="block text-sm">
         <span className="mb-1 block font-medium">Nome *</span>
         {sugestoes ? (
-          <CampoNomeComSugestoes
-            valor={form.nome}
-            aoMudar={(v) => atualizar("nome", v)}
-            sugestoes={sugestoes}
-            className={campo}
-          />
+          <CampoNomeComSugestoes valor={nome} aoMudar={setNome} sugestoes={sugestoes} className={campo} />
         ) : (
-          <input
-            value={form.nome}
-            onChange={(e) => atualizar("nome", e.target.value)}
-            className={campo}
-            placeholder="Ex.: Caneca branca 325ml"
-          />
+          <input value={nome} onChange={(e) => setNome(e.target.value)} className={campo} />
         )}
         {mensagem("nome")}
       </label>
 
-      <fieldset className="rounded border border-gray-200 p-4">
-        <legend className="px-1 text-sm font-medium">Compra</legend>
-        <div className="grid grid-cols-2 gap-4">
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">Total pago (R$) *</span>
-            <input
-              value={form.valor_pago}
-              onChange={(e) => atualizar("valor_pago", e.target.value)}
-              inputMode="decimal"
-              className={campo}
-              placeholder="126,00"
-            />
-            {mensagem("valor_pago")}
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">Quantidade comprada *</span>
+      {insumo ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
+            <span>
+              Custo médio:{" "}
+              <strong>
+                {insumo.custo_unitario_centavos === null ? "—" : formatarReais(insumo.custo_unitario_centavos)}
+              </strong>{" "}
+              <span className="text-gray-500">({insumo.quantidade_comprada} comprados)</span>
+            </span>
+          </div>
+
+          <label className="block text-sm sm:w-1/2">
+            <span className="mb-1 block font-medium">Quantidade em estoque</span>
             <input
               type="number"
-              min={1}
               step={1}
-              value={form.quantidade_comprada}
-              onChange={(e) => atualizar("quantidade_comprada", e.target.value)}
+              value={estoque}
+              onChange={(e) => setEstoque(e.target.value)}
               className={campo}
             />
-            {mensagem("quantidade_comprada")}
+            <span className="mt-1 block text-xs text-gray-500">
+              Para ajustes. Compras novas somam sozinhas. Pode ficar negativa.
+            </span>
+            {mensagem("quantidade_estoque")}
           </label>
-        </div>
-        <p className="mt-3 text-sm text-gray-600">
-          Custo por unidade:{" "}
-          <strong className="text-gray-900">{custo === null ? "—" : formatarReais(custo)}</strong>
-          <span className="block text-xs text-gray-500">Ex.: 12 canecas por R$ 126,00 = R$ 10,50 cada.</span>
-        </p>
-      </fieldset>
-
-      <label className="block text-sm sm:w-1/2">
-        <span className="mb-1 block font-medium">Quantidade em estoque</span>
-        <input
-          type="number"
-          step={1}
-          value={form.quantidade_estoque}
-          onChange={(e) => atualizar("quantidade_estoque", e.target.value)}
-          className={campo}
-        />
-        <span className="mt-1 block text-xs text-gray-500">Pode ficar negativa.</span>
-        {mensagem("quantidade_estoque")}
-      </label>
+        </>
+      ) : (
+        <fieldset className="rounded border border-gray-200 p-4">
+          <legend className="px-1 text-sm font-medium">Primeira compra</legend>
+          <CamposCompra
+            valores={compra}
+            aoMudar={(c, v) => setCompra((atual) => ({ ...atual, [c]: v }))}
+            erros={erros}
+            campoQuantidade="quantidade_comprada"
+            className={campo}
+          />
+          <p className="mt-2 text-xs text-gray-500">O estoque começa com a quantidade comprada.</p>
+        </fieldset>
+      )}
 
       <label className="block text-sm">
         <span className="mb-1 block font-medium">Observação</span>
-        <textarea
-          value={form.observacao}
-          onChange={(e) => atualizar("observacao", e.target.value)}
-          rows={2}
-          className={campo}
-        />
+        <textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} className={campo} />
         {mensagem("observacao")}
       </label>
 

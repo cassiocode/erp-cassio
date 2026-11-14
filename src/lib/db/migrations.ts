@@ -128,6 +128,32 @@ const migrations: Migration[] = [
       CREATE UNIQUE INDEX idx_insumos_nome ON insumos (nome COLLATE NOCASE);
     `,
   },
+  {
+    versao: 4,
+    nome: "compras_insumo",
+    // Cada compra soma ao estoque; o custo do insumo passa a ser a média ponderada das compras.
+    // O total pago/quantidade de cada insumo vira a primeira compra dele (o estoque atual não muda).
+    sql: `
+      CREATE TABLE compras_insumo (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        insumo_id INTEGER NOT NULL REFERENCES insumos (id),
+        data_compra TEXT NOT NULL, -- AAAA-MM-DD
+        quantidade INTEGER NOT NULL CHECK (quantidade >= 1),
+        valor_pago_centavos INTEGER NOT NULL CHECK (valor_pago_centavos >= 0),
+        observacao TEXT,
+        criado_em TEXT NOT NULL
+      );
+      CREATE INDEX idx_compras_insumo_insumo ON compras_insumo (insumo_id);
+
+      INSERT INTO compras_insumo (insumo_id, data_compra, quantidade, valor_pago_centavos, criado_em)
+        SELECT id, substr(criado_em, 1, 10), quantidade_comprada, valor_pago_centavos, criado_em
+          FROM insumos;
+
+      ALTER TABLE insumos DROP COLUMN valor_pago_centavos;
+      ALTER TABLE insumos DROP COLUMN quantidade_comprada;
+      ALTER TABLE insumos DROP COLUMN custo_unitario_centavos;
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

@@ -27,19 +27,28 @@ describe("migrations", () => {
     rodarMigrations(db);
 
     const insumos = db
-      .prepare(
-        `SELECT id, nome, valor_pago_centavos, quantidade_comprada, custo_unitario_centavos,
-                quantidade_estoque, observacao, ativo
-           FROM insumos ORDER BY id`,
-      )
+      .prepare("SELECT id, nome, quantidade_estoque, observacao, ativo FROM insumos ORDER BY id")
       .all()
       .map((linha) => ({ ...linha }));
 
     expect(insumos).toEqual([
-      { id: 1, nome: "Caneca branca", valor_pago_centavos: 1250, quantidade_comprada: 2, custo_unitario_centavos: 625, quantidade_estoque: 40, observacao: "Classe AAA", ativo: 1 },
-      { id: 2, nome: "Caneca preta", valor_pago_centavos: 1690, quantidade_comprada: 1, custo_unitario_centavos: 1690, quantidade_estoque: 20, observacao: null, ativo: 1 },
-      { id: 3, nome: "Caixa", valor_pago_centavos: 480, quantidade_comprada: 1, custo_unitario_centavos: 480, quantidade_estoque: 25, observacao: null, ativo: 0 },
-      { id: 4, nome: "Sem categoria", valor_pago_centavos: 100, quantidade_comprada: 1, custo_unitario_centavos: 100, quantidade_estoque: 0, observacao: null, ativo: 1 },
+      { id: 1, nome: "Caneca branca", quantidade_estoque: 40, observacao: "Classe AAA", ativo: 1 },
+      { id: 2, nome: "Caneca preta", quantidade_estoque: 20, observacao: null, ativo: 1 },
+      { id: 3, nome: "Caixa", quantidade_estoque: 25, observacao: null, ativo: 0 },
+      { id: 4, nome: "Sem categoria", quantidade_estoque: 0, observacao: null, ativo: 1 },
+    ]);
+
+    // O total pago/quantidade de cada insumo vira a primeira compra dele
+    const compras = db
+      .prepare("SELECT insumo_id, data_compra, quantidade, valor_pago_centavos FROM compras_insumo ORDER BY insumo_id")
+      .all()
+      .map((linha) => ({ ...linha }));
+
+    expect(compras).toEqual([
+      { insumo_id: 1, data_compra: "2026-01-01", quantidade: 2, valor_pago_centavos: 1250 },
+      { insumo_id: 2, data_compra: "2026-01-01", quantidade: 1, valor_pago_centavos: 1690 },
+      { insumo_id: 3, data_compra: "2026-01-01", quantidade: 1, valor_pago_centavos: 480 },
+      { insumo_id: 4, data_compra: "2026-01-01", quantidade: 1, valor_pago_centavos: 100 },
     ]);
 
     expect(tabelaExiste(db, "materiais")).toBe(false);
@@ -56,6 +65,6 @@ describe("migrations", () => {
     rodarMigrations(db);
     rodarMigrations(db);
     const versoes = db.prepare("SELECT versao FROM schema_migrations ORDER BY versao").all().map((v) => v.versao);
-    expect(versoes).toEqual([1, 2, 3]);
+    expect(versoes).toEqual([1, 2, 3, 4]);
   });
 });
