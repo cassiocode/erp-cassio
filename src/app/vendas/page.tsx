@@ -13,11 +13,23 @@ const ROTULO_STATUS: Record<Venda["status"], { texto: string; classe: string }> 
   concluida: { texto: "Venda", classe: "bg-green-100 text-green-800" },
 };
 
-export default function VendasPage() {
+const FILTROS: { valor: Venda["status"] | null; rotulo: string }[] = [
+  { valor: null, rotulo: "Todas" },
+  { valor: "pre_venda", rotulo: "Pré-vendas" },
+  { valor: "rascunho", rotulo: "Rascunhos" },
+  { valor: "concluida", rotulo: "Vendas" },
+];
+
+export default async function VendasPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+  const { status } = await searchParams;
+  const filtro = FILTROS.find((f) => f.valor !== null && f.valor === status)?.valor ?? null;
+
   // Pré-vendas primeiro (entrega mais próxima no topo), depois rascunhos, depois vendas concluídas
-  const vendas = listarVendas();
-  const concluidas = vendas.filter((v) => v.status === "concluida");
-  const preVendas = vendas.filter((v) => v.status === "pre_venda");
+  const todas = listarVendas();
+  const vendas = filtro ? todas.filter((v) => v.status === filtro) : todas;
+  const contagem = (s: Venda["status"] | null) => (s ? todas.filter((v) => v.status === s).length : todas.length);
+  const concluidas = todas.filter((v) => v.status === "concluida");
+  const preVendas = todas.filter((v) => v.status === "pre_venda");
   const faturamento = concluidas.reduce((s, v) => s + v.preco_venda_centavos, 0);
   const custo = concluidas.reduce((s, v) => s + v.custo_total_centavos, 0);
   const lucro = faturamento - custo;
@@ -53,6 +65,23 @@ export default function VendasPage() {
         <Resumo titulo={`Pré-vendas em aberto (${preVendas.length})`} valor={formatarReais(aReceber)} cor="text-amber-700" />
       </div>
 
+      <nav className="flex flex-wrap gap-2" aria-label="Filtrar por status">
+        {FILTROS.map((f) => {
+          const ativo = f.valor === filtro;
+          return (
+            <Link
+              key={f.rotulo}
+              href={f.valor ? `/vendas?status=${f.valor}` : "/vendas"}
+              className={`rounded-full border px-3 py-1 text-sm ${
+                ativo ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300 bg-white hover:bg-gray-50"
+              }`}
+            >
+              {f.rotulo} ({contagem(f.valor)})
+            </Link>
+          );
+        })}
+      </nav>
+
       <div className="overflow-x-auto rounded border border-gray-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-gray-200 bg-gray-100 text-gray-600">
@@ -72,7 +101,7 @@ export default function VendasPage() {
             {vendas.length === 0 && (
               <tr>
                 <td colSpan={9} className="px-3 py-6 text-center text-gray-500">
-                  Nenhuma venda registrada.
+                  {filtro ? "Nada com este status." : "Nenhuma venda registrada."}
                 </td>
               </tr>
             )}
