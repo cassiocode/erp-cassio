@@ -30,6 +30,9 @@ Abra http://localhost:3000 (vai para `/insumos`).
 - **Compras do insumo** (`/insumos/:id/compras`): lance novas compras (8 em estoque + 12 comprados = 20).
   O custo do insumo é a **média ponderada** das compras. Apagar uma compra tira a quantidade do estoque.
 
+- **Baixas** (`/baixas`): tira insumos do estoque sem venda (estrago, quebra...), com quantidade e motivo
+  em texto livre. Guarda o custo médio do dia para mostrar o valor perdido. Apagar a baixa devolve ao estoque.
+
 O custo total de cada produto (soma dos insumos usados) fica na futura tela de produtos.
 
 ## Banco de dados
