@@ -63,6 +63,7 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
           data_prevista: venda.data_prevista,
           kits: venda.kits.map(({ kit_id, quantidade }) => ({ kit_id, quantidade })),
           desconto_percentual: venda.desconto_percentual,
+          valor_pago_centavos: venda.valor_pago_centavos,
           cliente: venda.cliente,
           preco_venda_centavos: venda.preco_venda_centavos,
           custo_energia_centavos: venda.custo_energia_centavos,

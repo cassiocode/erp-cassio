@@ -41,6 +41,7 @@ export interface VendaEmEdicao {
   data_prevista: string | null;
   kits: { kit_id: number; quantidade: number }[];
   desconto_percentual: number;
+  valor_pago_centavos: number;
   cliente: string | null;
   preco_venda_centavos: number;
   custo_energia_centavos: number;
@@ -103,6 +104,9 @@ export default function FormVenda({
       : kitInicial
         ? centavosParaTexto(kitInicial.preco_venda_centavos)
         : "",
+  );
+  const [valorPago, setValorPago] = useState(
+    venda && venda.valor_pago_centavos > 0 ? centavosParaTexto(venda.valor_pago_centavos) : "",
   );
   const [cliente, setCliente] = useState(venda?.cliente ?? "");
   const [data, setData] = useState(venda?.data_venda ?? hojeISO());
@@ -230,6 +234,7 @@ export default function FormVenda({
           desconto_percentual: descontoTexto,
           cliente,
           preco_venda: preco,
+          valor_pago: status === "pre_venda" ? valorPago : "", // sinal só existe na pré-venda
           com_energia: comEnergia,
           observacao,
           itens,
@@ -268,6 +273,7 @@ export default function FormVenda({
     desconto_percentual: "Desconto",
     cliente: "Cliente",
     preco_venda: "Preço de venda",
+    valor_pago: "Valor já pago",
     itens: "Insumos",
     observacao: "Observação",
   };
@@ -555,6 +561,46 @@ export default function FormVenda({
           </label>
         )}
       </div>
+
+      {status === "pre_venda" && (
+        <div className="flex flex-wrap items-end gap-4 rounded border border-amber-200 bg-amber-50 p-4 text-sm">
+          <label className="block">
+            <span className="mb-1 block font-medium">Valor já pago (R$)</span>
+            <input
+              value={valorPago}
+              onChange={(e) => setValorPago(e.target.value)}
+              inputMode="decimal"
+              placeholder="0,00"
+              className={`w-36 rounded border bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none ${
+                erros.valor_pago ? "border-red-500 ring-1 ring-red-400" : "border-gray-300"
+              }`}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => precoCentavos !== null && setValorPago(centavosParaTexto(precoCentavos))}
+            disabled={precoCentavos === null}
+            className="rounded border border-gray-300 bg-white px-3 py-2 hover:bg-gray-50 disabled:opacity-40"
+          >
+            Pago tudo
+          </button>
+          <div className="pb-2">
+            {(() => {
+              const pago = valorPago.trim() === "" ? 0 : paraCentavos(valorPago);
+              if (pago === null) return <span className="text-red-600">Use um valor como 10,00</span>;
+              if (precoCentavos === null) return null;
+              const falta = precoCentavos - pago;
+              if (falta < 0) return <span className="text-red-600">Passou do preço de venda</span>;
+              return (
+                <span>
+                  Falta receber: <strong className={falta > 0 ? "text-amber-800" : "text-green-700"}>{formatarReais(falta)}</strong>
+                </span>
+              );
+            })()}
+          </div>
+          {mensagem("valor_pago")}
+        </div>
+      )}
 
       <div className="grid gap-3 rounded border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-3">
         <div>
