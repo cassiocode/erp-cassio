@@ -235,6 +235,24 @@ const migrations: Migration[] = [
         CHECK (custo_energia_centavos >= 0);
     `,
   },
+  {
+    versao: 8,
+    nome: "baixas_estoque",
+    sql: `
+      -- Baixa de estoque: insumo perdido/estragado/usado fora de venda. Tira a quantidade do estoque.
+      CREATE TABLE baixas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        insumo_id INTEGER NOT NULL REFERENCES insumos (id),
+        data_baixa TEXT NOT NULL, -- AAAA-MM-DD
+        quantidade INTEGER NOT NULL CHECK (quantidade >= 1),
+        motivo TEXT NOT NULL,
+        custo_unitario_centavos INTEGER NOT NULL CHECK (custo_unitario_centavos >= 0), -- custo médio no dia
+        criado_em TEXT NOT NULL
+      );
+      CREATE INDEX idx_baixas_insumo ON baixas (insumo_id);
+      CREATE INDEX idx_baixas_data ON baixas (data_baixa);
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */
