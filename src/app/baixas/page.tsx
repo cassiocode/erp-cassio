@@ -10,8 +10,6 @@ export const dynamic = "force-dynamic";
 export default function BaixasPage() {
   const baixas = listarBaixas();
   const insumos = listarInsumos({ ativo: 1 }).map(({ id, nome, quantidade_estoque }) => ({ id, nome, quantidade_estoque }));
-  const perdido = baixas.reduce((s, b) => s + b.custo_total_centavos, 0);
-
   return (
     <div className="space-y-4">
       <div>
@@ -22,11 +20,6 @@ export default function BaixasPage() {
       </div>
 
       <FormBaixa insumos={insumos} />
-
-      <div className="rounded border border-gray-200 bg-white px-4 py-3 sm:w-72">
-        <div className="text-xs text-gray-500">Valor perdido ({baixas.length} baixas)</div>
-        <div className="text-lg font-semibold text-red-600">{formatarReais(perdido)}</div>
-      </div>
 
       <div className="overflow-x-auto rounded border border-gray-200 bg-white">
         <table className="w-full text-left text-sm">
