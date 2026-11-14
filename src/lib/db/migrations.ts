@@ -262,6 +262,17 @@ const migrations: Migration[] = [
       ALTER TABLE insumos ADD COLUMN margem_lucro_percentual REAL CHECK (margem_lucro_percentual >= 0);
     `,
   },
+  {
+    versao: 10,
+    nome: "status_e_entrega_da_venda",
+    sql: `
+      -- rascunho: não mexe no estoque | pre_venda: já tirou do estoque, entrega futura | concluida: entregue
+      ALTER TABLE vendas ADD COLUMN status TEXT NOT NULL DEFAULT 'concluida'
+        CHECK (status IN ('rascunho', 'pre_venda', 'concluida'));
+      ALTER TABLE vendas ADD COLUMN data_prevista TEXT; -- AAAA-MM-DD, previsão de entrega
+      CREATE INDEX idx_vendas_status_prevista ON vendas (status, data_prevista);
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

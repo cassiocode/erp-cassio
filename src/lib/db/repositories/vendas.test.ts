@@ -2,7 +2,21 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "../connection";
 import { registrarCompra } from "./compras";
 import { buscarInsumoPorId, criarInsumo } from "./insumos";
-import { apagarVenda, buscarVenda, ItemInvalidoError, listarKits, listarVendas, registrarVenda, type DadosVenda } from "./vendas";
+import {
+  apagarVenda,
+  buscarVenda,
+  calcularFaltas,
+  concluirVenda,
+  faltasAoSalvar,
+  faltasAoTirar,
+  ItemInvalidoError,
+  listarKits,
+  listarVendas,
+  registrarVenda,
+  salvarVenda,
+  StatusInvalidoError,
+  type DadosVenda,
+} from "./vendas";
 
 // DB_PATH=":memory:": banco vazio com migrations. Os kits padrão existem, mas sem itens (não havia insumos).
 
@@ -19,7 +33,9 @@ function insumo(nome: string, totalCentavos: number, quantidade: number): number
 
 function venda(extra: Partial<DadosVenda> = {}): DadosVenda {
   return {
+    status: "concluida",
     data_venda: "2026-11-14",
+    data_prevista: null,
     kit_id: kitBranca,
     cliente: "Maria",
     preco_venda_centavos: 2990,
@@ -117,18 +133,117 @@ describe("vendas", () => {
     expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(12);
   });
 
-  it("lista as mais recentes primeiro", () => {
+  it("concluídas: as mais recentes primeiro", () => {
     registrarVenda(venda({ data_venda: "2026-11-10", cliente: "Ana" }));
     registrarVenda(venda({ data_venda: "2026-11-12", cliente: "Bia" }));
     expect(listarVendas().map((v) => v.cliente)).toEqual(["Bia", "Ana"]);
   });
 
-  it("apagar a venda devolve os insumos ao estoque", () => {
-    const { id } = registrarVenda(venda({ itens: [...venda().itens, { insumo_id: laco, quantidade: 2 }] }));
-    expect(apagarVenda(id)).toBe(true);
-    expect(buscarVenda(id)).toBeNull();
+  it("venda concluída não pode ser apagada nem alterada (não volta para o estoque)", () => {
+    const { id } = registrarVenda(venda());
+    expect(() => apagarVenda(id)).toThrow(StatusInvalidoError);
+    expect(() => salvarVenda(id, venda({ preco_venda_centavos: 1 }))).toThrow(StatusInvalidoError);
+    expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(11);
+    expect(apagarVenda(9999)).toBe(false);
+  });
+});
+
+describe("rascunho e pré-venda", () => {
+  const pre = (extra: Partial<DadosVenda> = {}) => venda({ status: "pre_venda", data_prevista: "2026-11-20", ...extra });
+
+  it("rascunho não mexe no estoque; apagar rascunho também não", () => {
+    const { id } = registrarVenda(venda({ status: "rascunho" }));
     expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(12);
+    expect(apagarVenda(id)).toBe(true);
+    expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(12);
+  });
+
+  it("pré-venda tira do estoque; cancelar devolve", () => {
+    const { id } = registrarVenda(pre());
+    expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(11);
+    expect(apagarVenda(id)).toBe(true);
+    expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(12);
+  });
+
+  it("concluir pré-venda não baixa de novo e muda a data da venda", () => {
+    const { id } = registrarVenda(pre());
+    const v = concluirVenda(id, "2026-11-21")!;
+    expect(v.status).toBe("concluida");
+    expect(v.data_venda).toBe("2026-11-21");
+    expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(11);
+    expect(() => concluirVenda(id, "2026-11-22")).toThrow(StatusInvalidoError);
+  });
+
+  it("concluir rascunho tira do estoque agora", () => {
+    const { id } = registrarVenda(venda({ status: "rascunho" }));
+    concluirVenda(id, "2026-11-21");
+    expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(11);
+  });
+
+  it("editar pré-venda ajusta o estoque pela diferença", () => {
+    const { id } = registrarVenda(pre({ itens: [{ insumo_id: laco, quantidade: 2 }] }));
+    expect(buscarInsumoPorId(laco)?.quantidade_estoque).toBe(8);
+    salvarVenda(id, pre({ itens: [{ insumo_id: laco, quantidade: 5 }, { insumo_id: caixa, quantidade: 1 }] }));
+    expect(buscarInsumoPorId(laco)?.quantidade_estoque).toBe(5);
+    expect(buscarInsumoPorId(caixa)?.quantidade_estoque).toBe(49);
+    salvarVenda(id, pre({ status: "rascunho", itens: [{ insumo_id: laco, quantidade: 5 }] })); // volta a rascunho
     expect(buscarInsumoPorId(laco)?.quantidade_estoque).toBe(10);
-    expect(apagarVenda(id)).toBe(false);
+    expect(buscarInsumoPorId(caixa)?.quantidade_estoque).toBe(50);
+  });
+
+  it("lista: pré-vendas primeiro pela entrega mais próxima, depois rascunhos, depois concluídas", () => {
+    registrarVenda(venda({ cliente: "Concluída" }));
+    registrarVenda(venda({ status: "rascunho", cliente: "Rascunho", data_prevista: "2026-11-15" }));
+    registrarVenda(pre({ cliente: "Dia 18", data_prevista: "2026-11-18" }));
+    registrarVenda(pre({ cliente: "Dia 15", data_prevista: "2026-11-15" }));
+    registrarVenda(pre({ cliente: "Dia 17", data_prevista: "2026-11-17" }));
+    expect(listarVendas().map((v) => v.cliente)).toEqual(["Dia 15", "Dia 17", "Dia 18", "Rascunho", "Concluída"]);
+    expect(listarVendas({ status: "pre_venda" })).toHaveLength(3);
+  });
+});
+
+describe("faltas de material", () => {
+  const pre = (cliente: string, data: string, qtd: number) =>
+    registrarVenda(
+      venda({ status: "pre_venda", cliente, data_prevista: data, itens: [{ insumo_id: laco, quantidade: qtd }] }),
+    ).id;
+
+  it("sem estoque negativo, sem faltas", () => {
+    pre("Ana", "2026-11-15", 3);
+    expect(calcularFaltas()).toEqual([]);
+  });
+
+  it("baixa que deixa o estoque negativo avisa a pré-venda de entrega mais distante", () => {
+    pre("Ana", "2026-11-15", 4); // laço: 10 -> 6
+    const bia = pre("Bia", "2026-11-18", 4); // 6 -> 2
+    expect(faltasAoTirar(laco, 3)).toEqual([
+      { venda_id: bia, cliente: "Bia", data_prevista: "2026-11-18", insumo_id: laco, insumo_nome: "Laço azul", falta: 1 },
+    ]);
+    // Quebrar 7: falta 5 -> 4 da Bia (entrega depois) e 1 da Ana
+    expect(faltasAoTirar(laco, 7).map((f) => [f.cliente, f.falta])).toEqual([
+      ["Bia", 4],
+      ["Ana", 1],
+    ]);
+  });
+
+  it("nova pré-venda com entrega mais próxima passa na frente", () => {
+    pre("Bia", "2026-11-18", 10); // laço: 10 -> 0
+    const faltas = faltasAoSalvar(null, {
+      status: "pre_venda",
+      data_prevista: "2026-11-15",
+      cliente: "Ana",
+      itens: [{ insumo_id: laco, quantidade: 2 }],
+    });
+    expect(faltas.map((f) => [f.cliente, f.falta])).toEqual([["Bia", 2]]);
+  });
+
+  it("rascunho não causa falta", () => {
+    pre("Bia", "2026-11-18", 10);
+    expect(faltasAoSalvar(null, { status: "rascunho", data_prevista: null, cliente: null, itens: [{ insumo_id: laco, quantidade: 5 }] })).toEqual([]);
+  });
+
+  it("estoque já negativo aparece nas faltas da pré-venda", () => {
+    const bia = pre("Bia", "2026-11-18", 12); // laço: 10 -> -2
+    expect(calcularFaltas().map((f) => [f.venda_id, f.falta])).toEqual([[bia, 2]]);
   });
 });

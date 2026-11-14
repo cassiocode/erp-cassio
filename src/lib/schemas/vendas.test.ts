@@ -24,6 +24,8 @@ function errosDe(entrada: unknown) {
 describe("vendaSchema", () => {
   it("converte a venda da tela para o formato do banco", () => {
     expect(vendaSchema.parse(valida)).toEqual({
+      status: "concluida",
+      data_prevista: null,
       data_venda: "2026-11-14",
       kit_id: 1,
       cliente: "Maria",
@@ -35,6 +37,13 @@ describe("vendaSchema", () => {
         { insumo_id: 15, quantidade: 1 },
       ],
     });
+  });
+
+  it("pré-venda exige data prevista de entrega; rascunho não", () => {
+    expect(errosDe({ ...valida, status: "pre_venda" }).data_prevista).toMatch(/data prevista/);
+    expect(vendaSchema.parse({ ...valida, status: "pre_venda", data_prevista: "2026-11-20" }).data_prevista).toBe("2026-11-20");
+    expect(vendaSchema.parse({ ...valida, status: "rascunho" }).status).toBe("rascunho");
+    expect(errosDe({ ...valida, status: "outro" }).status).toBe("Status inválido");
   });
 
   it("energia desmarcada fica com custo 0", () => {
