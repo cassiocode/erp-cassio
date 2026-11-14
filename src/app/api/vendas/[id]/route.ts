@@ -29,7 +29,7 @@ export async function GET(_request: Request, { params }: Contexto) {
   return venda ? NextResponse.json(venda) : respostaNaoEncontrado("Venda", "a");
 }
 
-// PUT /api/vendas/:id — altera rascunho ou pré-venda (o estoque é ajustado pela diferença)
+// PUT /api/vendas/:id — altera rascunho, pré-venda ou venda (o estoque é ajustado pela diferença)
 export async function PUT(request: Request, { params }: Contexto) {
   const id = lerId((await params).id);
   if (id === null) return respostaIdInvalido();
@@ -57,7 +57,7 @@ export async function PATCH(request: Request, { params }: Contexto) {
   }
 }
 
-// DELETE /api/vendas/:id — apaga rascunho ou cancela pré-venda (devolve ao estoque); concluída: 409
+// DELETE /api/vendas/:id — cancela venda ou pré-venda (devolve ao estoque) ou apaga rascunho
 export async function DELETE(_request: Request, { params }: Contexto) {
   const id = lerId((await params).id);
   if (id === null) return respostaIdInvalido();

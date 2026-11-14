@@ -231,13 +231,12 @@ function validar(dados: DadosVenda) {
 
 /**
  * Cria (id = null) ou altera a venda. O estoque é ajustado pela diferença entre o antes e o depois:
- * rascunho não mexe; pré-venda e concluída tiram. Venda concluída não pode mais ser alterada.
- * O custo dos insumos é o custo médio do momento em que se salva.
+ * rascunho não mexe; pré-venda e concluída tiram. Qualquer status pode ser editado (inclusive concluída,
+ * para corrigir um lançamento errado). O custo dos insumos é o custo médio do momento em que se salva.
  */
 export function salvarVenda(id: number | null, dados: DadosVenda): VendaComItens | null {
   const antiga = id === null ? null : buscarVenda(id);
   if (id !== null && !antiga) return null;
-  if (antiga?.status === "concluida") throw new StatusInvalidoError("Venda concluída não pode ser alterada");
 
   const { kits, itens, desconto_centavos } = validar(dados);
   const delta = diferenca(
@@ -335,15 +334,12 @@ export function concluirVenda(id: number, dataConclusao: string): VendaComItens 
 }
 
 /**
- * Apaga um rascunho ou cancela uma pré-venda (os insumos voltam para o estoque).
- * Venda concluída não pode ser apagada: o que foi vendido não volta para o estoque.
+ * Cancela a venda ou pré-venda (os insumos que ela tirou voltam para o estoque) ou apaga o rascunho
+ * (que não tinha mexido no estoque).
  */
 export function apagarVenda(id: number): boolean {
   const venda = buscarVenda(id);
   if (!venda) return false;
-  if (venda.status === "concluida") {
-    throw new StatusInvalidoError("Venda concluída não pode ser apagada: o que foi vendido não volta para o estoque");
-  }
 
   transacao(() => {
     const db = getDb();

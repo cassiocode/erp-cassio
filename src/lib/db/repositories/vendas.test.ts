@@ -142,11 +142,27 @@ describe("vendas", () => {
     expect(listarVendas().map((v) => v.cliente)).toEqual(["Bia", "Ana"]);
   });
 
-  it("venda concluída não pode ser apagada nem alterada (não volta para o estoque)", () => {
+  it("venda concluída pode ser editada: o estoque acompanha a diferença", () => {
+    const { id } = registrarVenda(venda()); // branca: 12 -> 11
+    salvarVenda(id, venda({ preco_venda_centavos: 2500, itens: [{ insumo_id: branca, quantidade: 3 }] }));
+    expect(buscarVenda(id)?.preco_venda_centavos).toBe(2500);
+    expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(9);
+    expect(buscarInsumoPorId(caixa)?.quantidade_estoque).toBe(50); // saiu da venda: voltou
+  });
+
+  it("venda concluída lançada errado pode voltar a pré-venda (estoque não muda)", () => {
     const { id } = registrarVenda(venda());
-    expect(() => apagarVenda(id)).toThrow(StatusInvalidoError);
-    expect(() => salvarVenda(id, venda({ preco_venda_centavos: 1 }))).toThrow(StatusInvalidoError);
+    salvarVenda(id, venda({ status: "pre_venda", data_prevista: "2026-11-20" }));
+    expect(buscarVenda(id)?.status).toBe("pre_venda");
     expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(11);
+  });
+
+  it("cancelar venda concluída devolve os insumos ao estoque", () => {
+    const { id } = registrarVenda(venda({ itens: [...venda().itens, { insumo_id: laco, quantidade: 2 }] }));
+    expect(apagarVenda(id)).toBe(true);
+    expect(buscarVenda(id)).toBeNull();
+    expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(12);
+    expect(buscarInsumoPorId(laco)?.quantidade_estoque).toBe(10);
     expect(apagarVenda(9999)).toBe(false);
   });
 });
