@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CUSTO_ENERGIA_CENTAVOS } from "@/lib/custos";
 import { hojeISO } from "@/lib/datas";
 import { centavosParaTexto, formatarReais, paraCentavos } from "@/lib/dinheiro";
 
@@ -42,16 +43,18 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
   const [cliente, setCliente] = useState("");
   const [data, setData] = useState(hojeISO());
   const [observacao, setObservacao] = useState("");
+  const [comEnergia, setComEnergia] = useState(true);
   const [novoInsumo, setNovoInsumo] = useState("");
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
 
   const porId = new Map(insumos.map((i) => [i.id, i]));
-  const custoTotal = itens.reduce((soma, item) => {
+  const custoInsumos = itens.reduce((soma, item) => {
     const qtd = Number(item.quantidade);
     const custo = porId.get(item.insumo_id)?.custo_unitario_centavos ?? 0;
     return soma + (Number.isInteger(qtd) && qtd > 0 ? qtd * custo : 0);
   }, 0);
+  const custoTotal = custoInsumos + (comEnergia ? CUSTO_ENERGIA_CENTAVOS : 0);
   const precoCentavos = paraCentavos(preco);
   const lucro = precoCentavos === null ? null : precoCentavos - custoTotal;
 
@@ -89,7 +92,7 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
       const resposta = await fetch("/api/vendas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data_venda: data, kit_id: kitId, cliente, preco_venda: preco, observacao, itens }),
+        body: JSON.stringify({ data_venda: data, kit_id: kitId, cliente, preco_venda: preco, com_energia: comEnergia, observacao, itens }),
       });
       if (resposta.ok) {
         router.push("/vendas");
@@ -220,6 +223,12 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
             Adicionar
           </button>
         </div>
+
+        <label className="mt-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={comEnergia} onChange={(e) => setComEnergia(e.target.checked)} />
+          Custo de energia — {formatarReais(CUSTO_ENERGIA_CENTAVOS)}
+          <span className="text-xs text-gray-500">(desmarque se não usou)</span>
+        </label>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -242,7 +251,7 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
 
       <div className="grid gap-3 rounded border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-3">
         <div>
-          <div className="text-xs text-gray-500">Custo dos insumos</div>
+          <div className="text-xs text-gray-500">{comEnergia ? "Custo (insumos + energia)" : "Custo dos insumos"}</div>
           <div className="text-lg font-semibold">{formatarReais(custoTotal)}</div>
         </div>
         <div>

@@ -29,7 +29,7 @@ export default function VendasPage() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Resumo titulo={`Faturamento (${vendas.length} vendas)`} valor={formatarReais(faturamento)} />
-        <Resumo titulo="Custo dos insumos" valor={formatarReais(custo)} />
+        <Resumo titulo="Custo (insumos + energia)"valor={formatarReais(custo)} />
         <Resumo titulo={lucro < 0 ? "Prejuízo" : "Lucro"} valor={formatarReais(lucro)} cor={lucro < 0 ? "text-red-600" : "text-green-700"} />
       </div>
 
