@@ -295,6 +295,14 @@ const migrations: Migration[] = [
       ALTER TABLE vendas ADD COLUMN desconto_centavos INTEGER NOT NULL DEFAULT 0 CHECK (desconto_centavos >= 0);
     `,
   },
+  {
+    versao: 12,
+    nome: "valor_ja_pago_da_venda",
+    sql: `
+      -- Quanto o cliente já pagou (sinal da pré-venda). O que falta = preço - pago.
+      ALTER TABLE vendas ADD COLUMN valor_pago_centavos INTEGER NOT NULL DEFAULT 0 CHECK (valor_pago_centavos >= 0);
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

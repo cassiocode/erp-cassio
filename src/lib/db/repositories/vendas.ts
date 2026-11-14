@@ -52,6 +52,7 @@ export interface Venda {
   desconto_centavos: number;
   cliente: string | null;
   preco_venda_centavos: number; // preço final (já com desconto)
+  valor_pago_centavos: number; // já pago pelo cliente (sinal da pré-venda)
   custo_energia_centavos: number; // 0 quando a energia foi desmarcada
   custo_total_centavos: number; // insumos + energia
   lucro_centavos: number; // pode ser negativo (prejuízo)
@@ -70,6 +71,7 @@ export interface DadosVenda {
   data_prevista: string | null;
   kits: { kit_id: number; quantidade: number }[];
   desconto_percentual: number; // 0 a 100, sobre o preço dos kits
+  valor_pago_centavos: number; // sinal já pago (não pode passar do preço)
   cliente: string | null;
   preco_venda_centavos: number;
   custo_energia_centavos: number;
@@ -257,6 +259,7 @@ export function salvarVenda(id: number | null, dados: DadosVenda): VendaComItens
       dados.custo_energia_centavos,
       dados.desconto_percentual,
       desconto_centavos,
+      dados.valor_pago_centavos,
       dados.observacao,
     ] as const;
 
@@ -266,7 +269,7 @@ export function salvarVenda(id: number | null, dados: DadosVenda): VendaComItens
       db.prepare(
         `UPDATE vendas SET status = ?, data_venda = ?, data_prevista = ?, kit_id = ?, cliente = ?,
                 preco_venda_centavos = ?, custo_energia_centavos = ?, desconto_percentual = ?,
-                desconto_centavos = ?, observacao = ?
+                desconto_centavos = ?, valor_pago_centavos = ?, observacao = ?
           WHERE id = ?`,
       ).run(...valores, vId);
       db.prepare("DELETE FROM venda_itens WHERE venda_id = ?").run(vId);
@@ -275,8 +278,9 @@ export function salvarVenda(id: number | null, dados: DadosVenda): VendaComItens
       const r = db
         .prepare(
           `INSERT INTO vendas (status, data_venda, data_prevista, kit_id, cliente, preco_venda_centavos,
-                              custo_energia_centavos, desconto_percentual, desconto_centavos, observacao, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                              custo_energia_centavos, desconto_percentual, desconto_centavos, valor_pago_centavos,
+                              observacao, criado_em)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(...valores, agora);
       vId = Number(r.lastInsertRowid);
@@ -321,6 +325,7 @@ export function concluirVenda(id: number, dataConclusao: string): VendaComItens 
     data_prevista: venda.data_prevista,
     kits: venda.kits.map(({ kit_id, quantidade }) => ({ kit_id, quantidade })),
     desconto_percentual: venda.desconto_percentual,
+    valor_pago_centavos: venda.valor_pago_centavos,
     cliente: venda.cliente,
     preco_venda_centavos: venda.preco_venda_centavos,
     custo_energia_centavos: venda.custo_energia_centavos,

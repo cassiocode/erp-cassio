@@ -32,6 +32,7 @@ describe("vendaSchema", () => {
       desconto_percentual: 5,
       cliente: "Maria",
       preco_venda_centavos: 2990,
+      valor_pago_centavos: 0,
       custo_energia_centavos: 50, // energia vem marcada por padrão
       observacao: null,
       itens: [
@@ -58,6 +59,13 @@ describe("vendaSchema", () => {
 
   it("energia desmarcada fica com custo 0", () => {
     expect(vendaSchema.parse({ ...valida, com_energia: false }).custo_energia_centavos).toBe(0);
+  });
+
+  it("valor já pago: vazio = 0, converte para centavos e não pode passar do preço", () => {
+    expect(vendaSchema.parse({ ...valida, valor_pago: "" }).valor_pago_centavos).toBe(0);
+    expect(vendaSchema.parse({ ...valida, valor_pago: "10,00" }).valor_pago_centavos).toBe(1000);
+    expect(errosDe({ ...valida, valor_pago: "30,00" }).valor_pago).toMatch(/maior que o preço/);
+    expect(errosDe({ ...valida, valor_pago: "-1" }).valor_pago).toMatch(/inválido/);
   });
 
   it("sem data usa hoje", () => {

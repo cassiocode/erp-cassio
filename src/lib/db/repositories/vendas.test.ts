@@ -38,6 +38,7 @@ function venda(extra: Partial<DadosVenda> = {}): DadosVenda {
     data_prevista: null,
     kits: [{ kit_id: kitBranca, quantidade: 1 }],
     desconto_percentual: 0,
+    valor_pago_centavos: 0,
     cliente: "Maria",
     preco_venda_centavos: 2990,
     custo_energia_centavos: 0, // sem energia, para as contas abaixo ficarem só nos insumos
@@ -175,6 +176,14 @@ describe("kits com quantidade e desconto", () => {
     const v = concluirVenda(id, "2026-11-20")!;
     expect(v.kits).toEqual([{ kit_id: kitPreta, nome: "Caneca preta", quantidade: 6, preco_unitario_centavos: 3490 }]);
     expect(v.desconto_centavos).toBe(2094); // 10% de 6 × 34,90 = 209,40 → 20,94
+  });
+
+  it("pré-venda guarda o valor já pago e mantém ao concluir", () => {
+    const { id, valor_pago_centavos } = registrarVenda(
+      venda({ status: "pre_venda", data_prevista: "2026-11-20", valor_pago_centavos: 1000 }),
+    );
+    expect(valor_pago_centavos).toBe(1000);
+    expect(concluirVenda(id, "2026-11-20")?.valor_pago_centavos).toBe(1000);
   });
 
   it("apagar rascunho apaga os kits dele", () => {

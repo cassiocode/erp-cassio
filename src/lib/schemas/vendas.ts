@@ -76,6 +76,19 @@ export const vendaSchema = z
         }
         return centavos;
       }),
+    valor_pago: z
+      .union([z.string(), z.number()])
+      .nullish()
+      .transform((v, ctx) => {
+        const texto = String(v ?? "").trim();
+        if (texto === "") return 0;
+        const centavos = paraCentavos(texto);
+        if (centavos === null) {
+          ctx.addIssue({ code: "custom", message: "Valor já pago inválido. Use um valor como 10,00 (não pode ser negativo)" });
+          return z.NEVER;
+        }
+        return centavos;
+      }),
     com_energia: z.boolean().default(true),
     observacao: textoOpcional("A observação", 500),
     itens: itensSchema,
@@ -84,9 +97,14 @@ export const vendaSchema = z
     path: ["data_prevista"],
     message: "Informe a data prevista de entrega da pré-venda",
   })
-  .transform(({ preco_venda, com_energia, ...resto }) => ({
+  .refine((v) => v.valor_pago <= v.preco_venda, {
+    path: ["valor_pago"],
+    message: "O valor já pago não pode ser maior que o preço de venda",
+  })
+  .transform(({ preco_venda, valor_pago, com_energia, ...resto }) => ({
     ...resto,
     preco_venda_centavos: preco_venda,
+    valor_pago_centavos: valor_pago,
     custo_energia_centavos: com_energia ? CUSTO_ENERGIA_CENTAVOS : 0,
   }));
 
