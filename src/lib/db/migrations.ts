@@ -226,6 +226,15 @@ const migrations: Migration[] = [
          WHERE p.id IS NOT NULL;
     `,
   },
+  {
+    versao: 7,
+    nome: "custo_energia_na_venda",
+    sql: `
+      -- Custo fixo de energia guardado em cada venda (0 = sem energia). Vendas antigas ficam com 0.
+      ALTER TABLE vendas ADD COLUMN custo_energia_centavos INTEGER NOT NULL DEFAULT 0
+        CHECK (custo_energia_centavos >= 0);
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

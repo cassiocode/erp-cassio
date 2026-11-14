@@ -28,12 +28,17 @@ describe("vendaSchema", () => {
       kit_id: 1,
       cliente: "Maria",
       preco_venda_centavos: 2990,
+      custo_energia_centavos: 50, // energia vem marcada por padrão
       observacao: null,
       itens: [
         { insumo_id: 9, quantidade: 1 },
         { insumo_id: 15, quantidade: 1 },
       ],
     });
+  });
+
+  it("energia desmarcada fica com custo 0", () => {
+    expect(vendaSchema.parse({ ...valida, com_energia: false }).custo_energia_centavos).toBe(0);
   });
 
   it("sem data usa hoje; sem kit fica null", () => {

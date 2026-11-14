@@ -23,6 +23,7 @@ function venda(extra: Partial<DadosVenda> = {}): DadosVenda {
     kit_id: kitBranca,
     cliente: "Maria",
     preco_venda_centavos: 2990,
+    custo_energia_centavos: 0, // sem energia, para as contas abaixo ficarem só nos insumos
     observacao: null,
     itens: [
       { insumo_id: branca, quantidade: 1 },
@@ -68,6 +69,13 @@ describe("vendas", () => {
       ["Caneca branca 325ml", 1, 1050],
       ["Caixa para caneca de porcelana 325ml", 1, 200],
     ]);
+  });
+
+  it("custo de energia entra no custo total e no lucro", () => {
+    const v = registrarVenda(venda({ custo_energia_centavos: 50 }));
+    expect(v.custo_energia_centavos).toBe(50);
+    expect(v.custo_total_centavos).toBe(1300); // 10,50 + 2,00 + 0,50
+    expect(v.lucro_centavos).toBe(1690);
   });
 
   it("tira os insumos do estoque, incluindo os extras adicionados à mão", () => {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CUSTO_ENERGIA_CENTAVOS } from "../custos";
 import { hojeISO } from "../datas";
 import { paraCentavos } from "../dinheiro";
 
@@ -33,6 +34,7 @@ export const vendaSchema = z
         }
         return centavos;
       }),
+    com_energia: z.boolean().default(true),
     observacao: textoOpcional("A observação", 500),
     itens: z
       .array(
@@ -44,4 +46,8 @@ export const vendaSchema = z
       )
       .min(1, "Adicione pelo menos um insumo"),
   })
-  .transform(({ preco_venda, ...resto }) => ({ ...resto, preco_venda_centavos: preco_venda }));
+  .transform(({ preco_venda, com_energia, ...resto }) => ({
+    ...resto,
+    preco_venda_centavos: preco_venda,
+    custo_energia_centavos: com_energia ? CUSTO_ENERGIA_CENTAVOS : 0,
+  }));

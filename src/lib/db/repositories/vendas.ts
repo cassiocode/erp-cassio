@@ -29,7 +29,8 @@ export interface Venda {
   kit_nome: string | null;
   cliente: string | null;
   preco_venda_centavos: number;
-  custo_total_centavos: number;
+  custo_energia_centavos: number; // 0 quando a energia foi desmarcada
+  custo_total_centavos: number; // insumos + energia
   lucro_centavos: number; // pode ser negativo (prejuízo)
   observacao: string | null;
   criado_em: string;
@@ -44,6 +45,7 @@ export interface DadosVenda {
   kit_id: number | null;
   cliente: string | null;
   preco_venda_centavos: number;
+  custo_energia_centavos: number;
   observacao: string | null;
   itens: { insumo_id: number; quantidade: number }[];
 }
@@ -75,6 +77,7 @@ export function listarKits(): Kit[] {
 
 const SELECT_VENDA = `
   SELECT v.*, k.nome AS kit_nome,
+         v.custo_energia_centavos +
          COALESCE((SELECT SUM(vi.quantidade * vi.custo_unitario_centavos) FROM venda_itens vi WHERE vi.venda_id = v.id), 0)
            AS custo_total_centavos
     FROM vendas v
@@ -134,10 +137,18 @@ export function registrarVenda(dados: DadosVenda): VendaComItens {
     const agora = new Date().toISOString();
     const venda = db
       .prepare(
-        `INSERT INTO vendas (data_venda, kit_id, cliente, preco_venda_centavos, observacao, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO vendas (data_venda, kit_id, cliente, preco_venda_centavos, custo_energia_centavos, observacao, criado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(dados.data_venda, dados.kit_id, dados.cliente, dados.preco_venda_centavos, dados.observacao, agora);
+      .run(
+        dados.data_venda,
+        dados.kit_id,
+        dados.cliente,
+        dados.preco_venda_centavos,
+        dados.custo_energia_centavos,
+        dados.observacao,
+        agora,
+      );
     const vendaId = Number(venda.lastInsertRowid);
 
     const inserirItem = db.prepare(
