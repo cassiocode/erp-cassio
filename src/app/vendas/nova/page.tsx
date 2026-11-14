@@ -11,12 +11,15 @@ export default function NovaVendaPage() {
     preco_venda_centavos,
     itens: itens.map(({ insumo_id, quantidade }) => ({ insumo_id, quantidade })),
   }));
-  const insumos = listarInsumos({ ativo: 1 }).map(({ id, nome, custo_unitario_centavos, quantidade_estoque }) => ({
-    id,
-    nome,
-    custo_unitario_centavos,
-    quantidade_estoque,
-  }));
+  const insumos = listarInsumos({ ativo: 1 }).map(
+    ({ id, nome, custo_unitario_centavos, quantidade_estoque, margem_lucro_percentual }) => ({
+      id,
+      nome,
+      custo_unitario_centavos,
+      quantidade_estoque,
+      margem_lucro_percentual,
+    }),
+  );
 
   return (
     <div>

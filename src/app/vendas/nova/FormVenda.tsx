@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CUSTO_ENERGIA_CENTAVOS } from "@/lib/custos";
+import { CUSTO_ENERGIA_CENTAVOS, formatarMargem, precoComMargem } from "@/lib/custos";
 import { hojeISO } from "@/lib/datas";
 import { centavosParaTexto, formatarReais, paraCentavos } from "@/lib/dinheiro";
 
@@ -18,6 +18,7 @@ export interface InsumoOpcao {
   nome: string;
   custo_unitario_centavos: number | null;
   quantidade_estoque: number;
+  margem_lucro_percentual: number | null;
 }
 
 interface Item {
@@ -58,28 +59,48 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
   const precoCentavos = paraCentavos(preco);
   const lucro = precoCentavos === null ? null : precoCentavos - custoTotal;
 
-  /** Troca o kit: sai o que era do kit anterior, entra o do novo; os extras ficam. */
+  /** Quanto o item soma no preço: só insumos fora do kit e com margem (custo × (1 + margem)). */
+  function valorNoPreco(item: Item, idDoKit: number | null): number {
+    const insumo = porId.get(item.insumo_id);
+    const qtd = Number(item.quantidade);
+    const doKit = kits.find((k) => k.id === idDoKit)?.itens.some((i) => i.insumo_id === item.insumo_id);
+    if (doKit || !insumo || insumo.margem_lucro_percentual === null || insumo.custo_unitario_centavos === null) return 0;
+    if (!Number.isInteger(qtd) || qtd <= 0) return 0;
+    return qtd * precoComMargem(insumo.custo_unitario_centavos, insumo.margem_lucro_percentual);
+  }
+
+  const totalNoPreco = (lista: Item[], idDoKit: number | null) =>
+    lista.reduce((soma, item) => soma + valorNoPreco(item, idDoKit), 0);
+
+  /** Troca os itens e ajusta o preço pela diferença das margens (mantém o que você editou à mão). */
+  function mudarItens(novos: Item[]) {
+    const diferenca = totalNoPreco(novos, kitId) - totalNoPreco(itens, kitId);
+    setItens(novos);
+    const atual = paraCentavos(preco);
+    if (diferenca !== 0 && atual !== null) setPreco(centavosParaTexto(Math.max(0, atual + diferenca)));
+  }
+
+  /** Troca o kit: sai o que era do kit anterior, entra o do novo; os extras ficam. Preço = kit + extras com margem. */
   function escolherKit(novo: KitOpcao) {
     const anterior = kits.find((k) => k.id === kitId);
     const doAnterior = new Set(anterior?.itens.map((i) => i.insumo_id));
-    setItens((atuais) => {
-      const extras = atuais.filter((i) => !doAnterior.has(i.insumo_id));
-      const doNovo = novo.itens
-        .filter((i) => !extras.some((e) => e.insumo_id === i.insumo_id))
-        .map((i) => ({ insumo_id: i.insumo_id, quantidade: String(i.quantidade) }));
-      return [...doNovo, ...extras];
-    });
+    const extras = itens.filter((i) => !doAnterior.has(i.insumo_id));
+    const doNovo = novo.itens
+      .filter((i) => !extras.some((e) => e.insumo_id === i.insumo_id))
+      .map((i) => ({ insumo_id: i.insumo_id, quantidade: String(i.quantidade) }));
+    const novos = [...doNovo, ...extras];
+    setItens(novos);
     setKitId(novo.id);
-    setPreco(centavosParaTexto(novo.preco_venda_centavos));
+    setPreco(centavosParaTexto(novo.preco_venda_centavos + totalNoPreco(novos, novo.id)));
   }
 
   function adicionarInsumo() {
     const id = Number(novoInsumo);
     if (!id) return;
-    setItens((atuais) =>
-      atuais.some((i) => i.insumo_id === id)
-        ? atuais.map((i) => (i.insumo_id === id ? { ...i, quantidade: String(Number(i.quantidade) + 1) } : i))
-        : [...atuais, { insumo_id: id, quantidade: "1" }],
+    mudarItens(
+      itens.some((i) => i.insumo_id === id)
+        ? itens.map((i) => (i.insumo_id === id ? { ...i, quantidade: String(Number(i.quantidade) + 1) } : i))
+        : [...itens, { insumo_id: id, quantidade: "1" }],
     );
     setNovoInsumo("");
   }
@@ -168,6 +189,12 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
                           ({insumo.quantidade_estoque} em estoque)
                         </span>
                       )}
+                      {insumo?.margem_lucro_percentual != null && valorNoPreco(item, kitId) > 0 && (
+                        <div className="text-xs text-green-700">
+                          + {formatarReais(valorNoPreco(item, kitId))} no preço (margem{" "}
+                          {formatarMargem(insumo.margem_lucro_percentual)})
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <input
@@ -176,8 +203,8 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
                         step={1}
                         value={item.quantidade}
                         onChange={(e) =>
-                          setItens((atuais) =>
-                            atuais.map((i) => (i.insumo_id === item.insumo_id ? { ...i, quantidade: e.target.value } : i)),
+                          mudarItens(
+                            itens.map((i) => (i.insumo_id === item.insumo_id ? { ...i, quantidade: e.target.value } : i)),
                           )
                         }
                         className="w-20 rounded border border-gray-300 px-2 py-1"
@@ -190,7 +217,7 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
                     <td className="px-3 py-2 text-right">
                       <button
                         type="button"
-                        onClick={() => setItens((atuais) => atuais.filter((i) => i.insumo_id !== item.insumo_id))}
+                        onClick={() => mudarItens(itens.filter((i) => i.insumo_id !== item.insumo_id))}
                         className="text-red-700 hover:underline"
                       >
                         Tirar

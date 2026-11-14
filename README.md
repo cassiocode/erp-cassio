@@ -23,6 +23,8 @@ Abra http://localhost:3000 (vai para `/insumos`).
   quantidades, adicione outros insumos (laço...) e edite o preço. Os kits já trazem 1 folha de papel de
   sublimação. Toda venda soma um custo fixo de energia de R$ 0,50 (dá para desmarcar). A venda tira os
   insumos do estoque e guarda o custo do dia; apagar a venda devolve os insumos.
+  Insumos com **margem de lucro** (definida no cadastro do insumo) somam no preço quando adicionados fora do
+  kit: custo × (1 + margem). Ex.: trufa de R$ 5,99 com 50% soma R$ 8,99.
 - **Insumos** (`/insumos`): itens que compõem o custo dos produtos (canecas branca e preta, caixas,
   embalagens, papel, tinta, brindes). No cadastro você informa a primeira compra: **total pago** e
   **quantidade comprada** (ex.: 12 canecas por R$ 126,00 = R$ 10,50 cada). Ao digitar o nome, aparecem
