@@ -383,9 +383,11 @@ export function faltasAoSalvar(id: number | null, dados: Pick<DadosVenda, "statu
   );
   const saida = new Map([...delta].filter(([, qtd]) => qtd > 0));
   if (saida.size === 0) return [];
-  return calcularFaltas(saida, { venda_id: id, data_prevista: dados.data_prevista, cliente: dados.cliente }).filter(
-    (f) => saida.has(f.insumo_id),
-  );
+  // Venda entregue agora (e baixa) pega o material primeiro: a falta cai nas pré-vendas.
+  // Pré-venda entra na fila pela data de entrega dela.
+  const dono =
+    dados.status === "pre_venda" ? { venda_id: id, data_prevista: dados.data_prevista, cliente: dados.cliente } : null;
+  return calcularFaltas(saida, dono).filter((f) => saida.has(f.insumo_id));
 }
 
 /** Faltas que uma saída avulsa (ex.: baixa) causaria nas pré-vendas. */

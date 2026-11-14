@@ -237,6 +237,12 @@ describe("faltas de material", () => {
     expect(faltas.map((f) => [f.cliente, f.falta])).toEqual([["Bia", 2]]);
   });
 
+  it("venda entregue agora (ou baixa pela API de alertas) pega o material: a falta cai na pré-venda", () => {
+    const bia = pre("Bia", "2026-11-18", 9); // laço: 10 -> 1
+    const faltas = faltasAoSalvar(null, { status: "concluida", data_prevista: null, cliente: null, itens: [{ insumo_id: laco, quantidade: 3 }] });
+    expect(faltas.map((f) => [f.venda_id, f.falta])).toEqual([[bia, 2]]);
+  });
+
   it("rascunho não causa falta", () => {
     pre("Bia", "2026-11-18", 10);
     expect(faltasAoSalvar(null, { status: "rascunho", data_prevista: null, cliente: null, itens: [{ insumo_id: laco, quantidade: 5 }] })).toEqual([]);
