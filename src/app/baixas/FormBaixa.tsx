@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { buscarFaltas, textoAlertaFaltas } from "@/lib/alertas";
 import { hojeISO } from "@/lib/datas";
 
 export interface InsumoOpcao {
@@ -30,6 +31,13 @@ export default function FormBaixa({ insumos }: { insumos: InsumoOpcao[] }) {
     setEnviando(true);
     setErros({});
     try {
+      // Avisa se a baixa vai deixar alguma pré-venda sem material
+      const qtd = Number(quantidade);
+      if (escolhido && Number.isInteger(qtd) && qtd > 0) {
+        const faltas = await buscarFaltas({ status: "concluida", itens: [{ insumo_id: escolhido.id, quantidade: qtd }] });
+        if (faltas.length > 0 && !confirm(textoAlertaFaltas(faltas, "Dar baixa mesmo assim?"))) return;
+      }
+
       const resposta = await fetch("/api/baixas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

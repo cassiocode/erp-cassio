@@ -18,7 +18,12 @@ npm run dev
 Abra http://localhost:3000 (vai para `/insumos`).
 
 ## Telas
-- **Vendas** (`/vendas`): lista com faturamento, custo e lucro. **Nova venda** (`/vendas/nova`): escolha o kit
+- **Vendas** (`/vendas`): cada lançamento é **Venda** (entregue, tira do estoque e não volta), **Pré-venda**
+  (entrega futura com data prevista; já tira do estoque, cancelar devolve) ou **Rascunho** (não mexe no
+  estoque). A lista mostra as pré-vendas no topo, pela entrega mais próxima. **Concluir** uma pré-venda não
+  baixa de novo. Se uma venda, pré-venda ou baixa deixar o estoque negativo, aparece o aviso de para qual
+  pré-venda vai faltar material (a entrega mais próxima tem prioridade) e a pré-venda fica marcada com
+  "Falta". Lista com faturamento, custo e lucro (só vendas concluídas). **Nova venda** (`/vendas/nova`): escolha o kit
   (caneca branca R$ 29,90 ou caneca preta R$ 34,90, os dois já com a caixa de porcelana 325 ml), ajuste
   quantidades, adicione outros insumos (laço...) e edite o preço. Os kits já trazem 1 folha de papel de
   sublimação. Toda venda soma um custo fixo de energia de R$ 0,50 (dá para desmarcar). A venda tira os
