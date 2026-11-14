@@ -32,3 +32,17 @@ export function getDb(): DatabaseSync {
   globalComBanco.__estoqueDb = db;
   return db;
 }
+
+/** Roda `fn` numa transação: grava tudo ou nada. */
+export function transacao<T>(fn: () => T): T {
+  const db = getDb();
+  db.exec("BEGIN");
+  try {
+    const resultado = fn();
+    db.exec("COMMIT");
+    return resultado;
+  } catch (erro) {
+    db.exec("ROLLBACK");
+    throw erro;
+  }
+}
