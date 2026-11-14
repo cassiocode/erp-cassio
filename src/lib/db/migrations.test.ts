@@ -65,6 +65,36 @@ describe("migrations", () => {
     rodarMigrations(db);
     rodarMigrations(db);
     const versoes = db.prepare("SELECT versao FROM schema_migrations ORDER BY versao").all().map((v) => v.versao);
-    expect(versoes).toEqual([1, 2, 3, 4]);
+    expect(versoes).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("migration 5 liga os kits padrão aos insumos ativos pelo nome", () => {
+    const db = new DatabaseSync(":memory:");
+    rodarMigrations(db, 4);
+    const inserir = db.prepare(
+      "INSERT INTO insumos (nome, quantidade_estoque, ativo, criado_em, atualizado_em) VALUES (?, 0, ?, 'x', 'x')",
+    );
+    inserir.run("Caneca branca antiga", 0); // inativa: ignorada
+    inserir.run("Caneca branca 325ml - Live", 1);
+    inserir.run("Caneca Preta 325 - Top", 1);
+    inserir.run("Caixa Para Caneca De Porcelana 325 ML", 1);
+    inserir.run("Laço Azul", 1);
+
+    rodarMigrations(db);
+
+    const kits = db
+      .prepare(
+        `SELECT k.nome AS kit, k.preco_venda_centavos AS preco, i.nome AS insumo
+           FROM kits k JOIN kit_itens ki ON ki.kit_id = k.id JOIN insumos i ON i.id = ki.insumo_id
+          ORDER BY k.ordem, i.nome`,
+      )
+      .all()
+      .map((l) => ({ ...l }));
+    expect(kits).toEqual([
+      { kit: "Caneca branca", preco: 2990, insumo: "Caixa Para Caneca De Porcelana 325 ML" },
+      { kit: "Caneca branca", preco: 2990, insumo: "Caneca branca 325ml - Live" },
+      { kit: "Caneca preta", preco: 3490, insumo: "Caixa Para Caneca De Porcelana 325 ML" },
+      { kit: "Caneca preta", preco: 3490, insumo: "Caneca Preta 325 - Top" },
+    ]);
   });
 });

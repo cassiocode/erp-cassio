@@ -154,6 +154,66 @@ const migrations: Migration[] = [
       ALTER TABLE insumos DROP COLUMN custo_unitario_centavos;
     `,
   },
+  {
+    versao: 5,
+    nome: "kits_e_vendas",
+    // Kit = pré-definição da venda (caneca + caixa + preço sugerido).
+    // A venda guarda uma cópia dos itens e do custo de cada insumo no dia, para o lucro não mudar depois.
+    sql: `
+      CREATE TABLE kits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        preco_venda_centavos INTEGER NOT NULL CHECK (preco_venda_centavos >= 0),
+        ordem INTEGER NOT NULL DEFAULT 0,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1))
+      );
+      CREATE UNIQUE INDEX idx_kits_nome ON kits (nome COLLATE NOCASE);
+
+      CREATE TABLE kit_itens (
+        kit_id INTEGER NOT NULL REFERENCES kits (id),
+        insumo_id INTEGER NOT NULL REFERENCES insumos (id),
+        quantidade INTEGER NOT NULL DEFAULT 1 CHECK (quantidade >= 1),
+        PRIMARY KEY (kit_id, insumo_id)
+      );
+
+      CREATE TABLE vendas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        data_venda TEXT NOT NULL, -- AAAA-MM-DD
+        kit_id INTEGER REFERENCES kits (id),
+        cliente TEXT,
+        preco_venda_centavos INTEGER NOT NULL CHECK (preco_venda_centavos >= 0),
+        observacao TEXT,
+        criado_em TEXT NOT NULL
+      );
+      CREATE INDEX idx_vendas_data ON vendas (data_venda);
+
+      CREATE TABLE venda_itens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        venda_id INTEGER NOT NULL REFERENCES vendas (id),
+        insumo_id INTEGER NOT NULL REFERENCES insumos (id),
+        quantidade INTEGER NOT NULL CHECK (quantidade >= 1),
+        custo_unitario_centavos INTEGER NOT NULL CHECK (custo_unitario_centavos >= 0)
+      );
+      CREATE INDEX idx_venda_itens_venda ON venda_itens (venda_id);
+
+      -- Kits padrão: caneca branca R$ 29,90 e caneca preta R$ 34,90, cada um com a caixa de porcelana 325 ml
+      INSERT INTO kits (nome, preco_venda_centavos, ordem) VALUES ('Caneca branca', 2990, 1), ('Caneca preta', 3490, 2);
+
+      -- Liga cada kit ao insumo pelo começo do nome (o primeiro ativo que achar; se não achar, fica sem)
+      INSERT INTO kit_itens (kit_id, insumo_id)
+        SELECT kit_id, insumo_id FROM (
+          SELECT k.id AS kit_id,
+                 (SELECT MIN(i.id) FROM insumos i WHERE i.ativo = 1 AND lower(i.nome) LIKE 'caneca branca%') AS insumo_id
+            FROM kits k WHERE k.nome = 'Caneca branca'
+          UNION ALL
+          SELECT k.id, (SELECT MIN(i.id) FROM insumos i WHERE i.ativo = 1 AND lower(i.nome) LIKE 'caneca preta%')
+            FROM kits k WHERE k.nome = 'Caneca preta'
+          UNION ALL
+          SELECT k.id, (SELECT MIN(i.id) FROM insumos i WHERE i.ativo = 1 AND lower(i.nome) LIKE 'caixa para caneca%')
+            FROM kits k
+        ) WHERE insumo_id IS NOT NULL;
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */
