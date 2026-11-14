@@ -64,6 +64,7 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
               <th className="px-3 py-2">Nome</th>
               <th className="px-3 py-2 text-right">Custo médio</th>
               <th className="px-3 py-2 text-right">Margem</th>
+              <th className="px-3 py-2 text-right">Preço un. total</th>
               <th className="px-3 py-2 text-right">Comprados</th>
               <th className="px-3 py-2 text-right">Em estoque</th>
               <th className="px-3 py-2">Status</th>
@@ -73,7 +74,7 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
           <tbody>
             {insumos.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={8} className="px-3 py-6 text-center text-gray-500">
                   Nenhum insumo encontrado.
                 </td>
               </tr>
@@ -91,8 +92,16 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
                   {i.margem_lucro_percentual === null ? (
                     <span className="text-gray-400">—</span>
                   ) : (
-                    <span title={i.custo_unitario_centavos === null ? undefined : `Preço na venda: ${formatarReais(precoComMargem(i.custo_unitario_centavos, i.margem_lucro_percentual))}`}>
-                      {formatarMargem(i.margem_lucro_percentual)}
+                    formatarMargem(i.margem_lucro_percentual)
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {/* Custo médio + margem: o que o insumo soma no preço da venda */}
+                  {i.margem_lucro_percentual === null || i.custo_unitario_centavos === null ? (
+                    <span className="text-gray-400">—</span>
+                  ) : (
+                    <span className="font-medium text-green-700">
+                      {formatarReais(precoComMargem(i.custo_unitario_centavos, i.margem_lucro_percentual))}
                     </span>
                   )}
                 </td>
