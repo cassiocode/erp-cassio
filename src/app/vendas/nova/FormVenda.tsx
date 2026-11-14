@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CUSTO_ENERGIA_CENTAVOS, formatarMargem, precoComMargem } from "@/lib/custos";
 import { buscarFaltas, textoAlertaFaltas } from "@/lib/alertas";
 import { hojeISO } from "@/lib/datas";
+import { descontoProgressivo, lerPercentual, valorDesconto } from "@/lib/descontos";
 import { centavosParaTexto, formatarReais, paraCentavos } from "@/lib/dinheiro";
 
 export interface KitOpcao {
@@ -38,13 +39,18 @@ export interface VendaEmEdicao {
   status: StatusVenda;
   data_venda: string;
   data_prevista: string | null;
-  kit_id: number | null;
+  kits: { kit_id: number; quantidade: number }[];
+  desconto_percentual: number;
   cliente: string | null;
   preco_venda_centavos: number;
   custo_energia_centavos: number;
   observacao: string | null;
   itens: { insumo_id: number; quantidade: number }[];
 }
+
+type QtdKits = Record<number, number>; // kit_id -> canecas (0 = fora da venda)
+
+const textoPercentual = (n: number) => String(n).replace(".", ",");
 
 const OPCOES_STATUS: { valor: StatusVenda; rotulo: string; dica: string }[] = [
   { valor: "concluida", rotulo: "Venda", dica: "Entregue agora. Tira do estoque e não volta." },
@@ -53,9 +59,10 @@ const OPCOES_STATUS: { valor: StatusVenda; rotulo: string; dica: string }[] = [
 ];
 
 /**
- * Venda, pré-venda ou rascunho: escolher o kit (caneca branca ou preta) já traz a caneca, a caixa e o
- * preço sugerido. Dá para mudar quantidades, tirar itens, adicionar outros insumos (laço...) e editar o preço.
- * Com `venda`, edita um rascunho ou pré-venda.
+ * Venda, pré-venda ou rascunho. Cada kit (caneca branca, preta) tem quantidade de canecas: cada caneca traz
+ * a caneca, a caixa e o papel. Desconto progressivo sobre o preço dos kits (3+ canecas 5%, 6+ 10%), que
+ * pode ser trocado ou tirado. Dá para mudar quantidades, tirar itens, adicionar outros insumos (laço...)
+ * e editar o preço final. Com `venda`, edita um rascunho ou pré-venda.
  */
 export default function FormVenda({
   kits,
@@ -69,12 +76,26 @@ export default function FormVenda({
   faltas?: Record<number, number>; // pré-venda sem material: insumo_id -> quantidade que falta
 }) {
   const router = useRouter();
-  const kitInicial = venda ? null : (kits[0] ?? null);
+  const kitInicial = venda ? null : (kits[0] ?? null); // venda nova começa com 1 caneca branca
   const [status, setStatus] = useState<StatusVenda>(venda?.status ?? "concluida");
   const [dataPrevista, setDataPrevista] = useState(venda?.data_prevista ?? "");
-  const [kitId, setKitId] = useState<number | null>(venda ? venda.kit_id : (kitInicial?.id ?? null));
+  const [qtdKits, setQtdKits] = useState<QtdKits>(() =>
+    venda
+      ? Object.fromEntries(venda.kits.map((k) => [k.kit_id, k.quantidade]))
+      : kitInicial
+        ? { [kitInicial.id]: 1 }
+        : {},
+  );
   const [itens, setItens] = useState<Item[]>(
     (venda?.itens ?? kitInicial?.itens ?? []).map((i) => ({ insumo_id: i.insumo_id, quantidade: String(i.quantidade) })),
+  );
+  // Desconto: automático (progressivo) até você digitar outro valor ou tirar
+  const canecasIniciais = venda ? venda.kits.reduce((s, k) => s + k.quantidade, 0) : kitInicial ? 1 : 0;
+  const [descontoTexto, setDescontoTexto] = useState(
+    textoPercentual(venda ? venda.desconto_percentual : descontoProgressivo(canecasIniciais)),
+  );
+  const [descontoManual, setDescontoManual] = useState(
+    venda ? venda.desconto_percentual !== descontoProgressivo(canecasIniciais) : false,
   );
   const [preco, setPreco] = useState(
     venda
@@ -101,45 +122,77 @@ export default function FormVenda({
   const precoCentavos = paraCentavos(preco);
   const lucro = precoCentavos === null ? null : precoCentavos - custoTotal;
 
-  /** Preço unitário com margem, se a margem vale para o item (insumo fora do kit e com margem); senão null. */
-  function precoUnitarioComMargem(insumoId: number, idDoKit: number | null): number | null {
+  const totalCanecas = (q: QtdKits) => Object.values(q).reduce((s, n) => s + n, 0);
+  const totalKits = (q: QtdKits) => kits.reduce((s, k) => s + (q[k.id] ?? 0) * k.preco_venda_centavos, 0);
+  const canecas = totalCanecas(qtdKits);
+  const descontoAuto = descontoProgressivo(canecas);
+  const descontoPct = lerPercentual(descontoTexto);
+  const brutoKits = totalKits(qtdKits);
+  const descontoValor = valorDesconto(brutoKits, descontoPct ?? 0);
+
+  /** Insumos que fazem parte de algum kit da venda: não levam margem (já estão no preço do kit). */
+  const insumosDosKits = (q: QtdKits) =>
+    new Set(kits.filter((k) => (q[k.id] ?? 0) > 0).flatMap((k) => k.itens.map((i) => i.insumo_id)));
+
+  /** Preço unitário com margem, se a margem vale para o item (insumo fora dos kits e com margem); senão null. */
+  function precoUnitarioComMargem(insumoId: number, q: QtdKits = qtdKits): number | null {
     const insumo = porId.get(insumoId);
-    const doKit = kits.find((k) => k.id === idDoKit)?.itens.some((i) => i.insumo_id === insumoId);
-    if (doKit || !insumo || insumo.margem_lucro_percentual === null || insumo.custo_unitario_centavos === null) return null;
+    if (insumosDosKits(q).has(insumoId) || !insumo) return null;
+    if (insumo.margem_lucro_percentual === null || insumo.custo_unitario_centavos === null) return null;
     return precoComMargem(insumo.custo_unitario_centavos, insumo.margem_lucro_percentual);
   }
 
-  /** Quanto o item soma no preço: quantidade × preço com margem (0 se a margem não vale para ele). */
-  function valorNoPreco(item: Item, idDoKit: number | null): number {
-    const qtd = Number(item.quantidade);
-    const unitario = precoUnitarioComMargem(item.insumo_id, idDoKit);
-    if (unitario === null || !Number.isInteger(qtd) || qtd <= 0) return 0;
-    return qtd * unitario;
+  /** Preço sugerido: kits com desconto + extras com margem. */
+  function sugerido(q: QtdKits, lista: Item[], textoDesconto: string): number {
+    const extras = lista.reduce((soma, item) => {
+      const qtd = Number(item.quantidade);
+      const unitario = precoUnitarioComMargem(item.insumo_id, q);
+      return unitario === null || !Number.isInteger(qtd) || qtd <= 0 ? soma : soma + qtd * unitario;
+    }, 0);
+    const bruto = totalKits(q);
+    return bruto - valorDesconto(bruto, lerPercentual(textoDesconto) ?? 0) + extras;
   }
 
-  const totalNoPreco = (lista: Item[], idDoKit: number | null) =>
-    lista.reduce((soma, item) => soma + valorNoPreco(item, idDoKit), 0);
-
-  /** Troca os itens e ajusta o preço pela diferença das margens (mantém o que você editou à mão). */
-  function mudarItens(novos: Item[]) {
-    const diferenca = totalNoPreco(novos, kitId) - totalNoPreco(itens, kitId);
-    setItens(novos);
+  /**
+   * Aplica uma mudança (kits, itens ou desconto) e ajusta o preço pela diferença do sugerido,
+   * mantendo o que você editou à mão no preço.
+   */
+  function aplicar(mudanca: { q?: QtdKits; lista?: Item[]; desconto?: string; manual?: boolean }) {
+    const q = mudanca.q ?? qtdKits;
+    const lista = mudanca.lista ?? itens;
+    const manual = mudanca.manual ?? descontoManual;
+    // Desconto automático acompanha a quantidade de canecas
+    const desconto = mudanca.desconto ?? (manual ? descontoTexto : textoPercentual(descontoProgressivo(totalCanecas(q))));
+    const diferenca = sugerido(q, lista, desconto) - sugerido(qtdKits, itens, descontoTexto);
+    setQtdKits(q);
+    setItens(lista);
+    setDescontoTexto(desconto);
+    setDescontoManual(manual);
     const atual = paraCentavos(preco);
-    if (diferenca !== 0 && atual !== null) setPreco(centavosParaTexto(Math.max(0, atual + diferenca)));
+    if (atual === null) setPreco(centavosParaTexto(sugerido(q, lista, desconto)));
+    else if (diferenca !== 0) setPreco(centavosParaTexto(Math.max(0, atual + diferenca)));
   }
 
-  /** Troca o kit: sai o que era do kit anterior, entra o do novo; os extras ficam. Preço = kit + extras com margem. */
-  function escolherKit(novo: KitOpcao) {
-    const anterior = kits.find((k) => k.id === kitId);
-    const doAnterior = new Set(anterior?.itens.map((i) => i.insumo_id));
-    const extras = itens.filter((i) => !doAnterior.has(i.insumo_id));
-    const doNovo = novo.itens
-      .filter((i) => !extras.some((e) => e.insumo_id === i.insumo_id))
-      .map((i) => ({ insumo_id: i.insumo_id, quantidade: String(i.quantidade) }));
-    const novos = [...doNovo, ...extras];
-    setItens(novos);
-    setKitId(novo.id);
-    setPreco(centavosParaTexto(novo.preco_venda_centavos + totalNoPreco(novos, novo.id)));
+  const mudarItens = (lista: Item[]) => aplicar({ lista });
+
+  /** Muda a quantidade de canecas de um kit: os insumos do kit acompanham (caneca, caixa, papel). */
+  function mudarQtdKit(kit: KitOpcao, novaQtd: number) {
+    const qtd = Math.max(0, Math.floor(novaQtd) || 0);
+    const delta = qtd - (qtdKits[kit.id] ?? 0);
+    if (delta === 0) return;
+    let lista = [...itens];
+    for (const ki of kit.itens) {
+      const atual = lista.find((i) => i.insumo_id === ki.insumo_id);
+      const nova = (atual ? Number(atual.quantidade) || 0 : 0) + ki.quantidade * delta;
+      lista = atual
+        ? nova > 0
+          ? lista.map((i) => (i.insumo_id === ki.insumo_id ? { ...i, quantidade: String(nova) } : i))
+          : lista.filter((i) => i.insumo_id !== ki.insumo_id)
+        : nova > 0
+          ? [...lista, { insumo_id: ki.insumo_id, quantidade: String(nova) }]
+          : lista;
+    }
+    aplicar({ q: { ...qtdKits, [kit.id]: qtd }, lista });
   }
 
   function adicionarInsumo() {
@@ -172,7 +225,8 @@ export default function FormVenda({
           status,
           data_prevista: prevista,
           data_venda: data,
-          kit_id: kitId,
+          kits: kits.filter((k) => (qtdKits[k.id] ?? 0) > 0).map((k) => ({ kit_id: k.id, quantidade: qtdKits[k.id] })),
+          desconto_percentual: descontoTexto,
           cliente,
           preco_venda: preco,
           com_energia: comEnergia,
@@ -235,21 +289,103 @@ export default function FormVenda({
       </div>
 
       <div>
-        <span className="mb-2 block text-sm font-medium">Kit</span>
-        <div className="flex flex-wrap gap-2">
-          {kits.map((k) => (
-            <button
-              key={k.id}
-              type="button"
-              onClick={() => escolherKit(k)}
-              className={`rounded border px-4 py-2 text-sm ${
-                k.id === kitId ? "border-blue-600 bg-blue-50 font-medium text-blue-800" : "border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              {k.nome} — {formatarReais(k.preco_venda_centavos)}
-            </button>
-          ))}
+        <span className="mb-2 block text-sm font-medium">Canecas</span>
+        <div className="flex flex-wrap gap-3">
+          {kits.map((k) => {
+            const qtd = qtdKits[k.id] ?? 0;
+            return (
+              <div
+                key={k.id}
+                className={`flex items-center gap-3 rounded border px-3 py-2 text-sm ${
+                  qtd > 0 ? "border-blue-600 bg-blue-50" : "border-gray-300"
+                }`}
+              >
+                <span className={qtd > 0 ? "font-medium text-blue-800" : ""}>
+                  {k.nome} — {formatarReais(k.preco_venda_centavos)}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => mudarQtdKit(k, qtd - 1)}
+                    disabled={qtd === 0}
+                    aria-label={`Menos ${k.nome}`}
+                    className="h-7 w-7 rounded border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={qtd}
+                    onChange={(e) => mudarQtdKit(k, Number(e.target.value))}
+                    aria-label={`Quantidade de ${k.nome}`}
+                    className="w-14 rounded border border-gray-300 px-2 py-1 text-center"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => mudarQtdKit(k, qtd + 1)}
+                    aria-label={`Mais ${k.nome}`}
+                    className="h-7 w-7 rounded border border-gray-300 bg-white hover:bg-gray-100"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
+        {mensagem("kits")}
+
+        <div className="mt-3 flex flex-wrap items-end gap-3 text-sm">
+          <label className="block">
+            <span className="mb-1 block font-medium">Desconto nas canecas (%)</span>
+            <input
+              value={descontoTexto}
+              onChange={(e) => {
+                setDescontoManual(true);
+                aplicar({ desconto: e.target.value, manual: true });
+              }}
+              inputMode="decimal"
+              className="w-28 rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => aplicar({ desconto: textoPercentual(descontoAuto), manual: false })}
+            disabled={!descontoManual}
+            className="rounded border border-gray-300 px-3 py-2 hover:bg-gray-50 disabled:opacity-40"
+          >
+            Usar automático ({descontoAuto}%)
+          </button>
+          <button
+            type="button"
+            onClick={() => aplicar({ desconto: "0", manual: true })}
+            disabled={descontoPct === 0}
+            className="rounded border border-gray-300 px-3 py-2 hover:bg-gray-50 disabled:opacity-40"
+          >
+            Tirar desconto
+          </button>
+          <span className="pb-2 text-xs text-gray-500">
+            {canecas} caneca{canecas === 1 ? "" : "s"} · automático: 3+ = 5%, 6+ = 10%
+            {descontoManual ? " · desconto digitado" : ""}
+          </span>
+        </div>
+        {descontoPct === null && <p className="mt-1 text-xs text-red-600">Use um número de 0 a 100, como 5 ou 20.</p>}
+        {mensagem("desconto_percentual")}
+        {brutoKits > 0 && (
+          <p className="mt-2 text-sm text-gray-700">
+            Canecas: {formatarReais(brutoKits)}
+            {descontoValor > 0 && (
+              <>
+                {" "}
+                − desconto {textoPercentual(descontoPct ?? 0)}%:{" "}
+                <span className="font-medium text-red-600">− {formatarReais(descontoValor)}</span> ={" "}
+                <strong>{formatarReais(brutoKits - descontoValor)}</strong>
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       <div>
@@ -277,7 +413,7 @@ export default function FormVenda({
               {itens.map((item) => {
                 const insumo = porId.get(item.insumo_id);
                 const custo = insumo?.custo_unitario_centavos ?? 0;
-                const comMargem = precoUnitarioComMargem(item.insumo_id, kitId);
+                const comMargem = precoUnitarioComMargem(item.insumo_id);
                 const unitarioFinal = comMargem ?? custo; // sem margem (ou item do kit): o próprio custo
                 const qtd = Number(item.quantidade);
                 const falta = faltas[item.insumo_id] ?? 0;

@@ -61,7 +61,7 @@ export default function VendasPage() {
               <th className="px-3 py-2">Entrega</th>
               <th className="px-3 py-2">Data</th>
               <th className="px-3 py-2">Cliente</th>
-              <th className="px-3 py-2">Kit</th>
+              <th className="px-3 py-2">Canecas</th>
               <th className="px-3 py-2 text-right">Preço</th>
               <th className="px-3 py-2 text-right">Custo</th>
               <th className="px-3 py-2 text-right">Lucro</th>
@@ -106,8 +106,15 @@ export default function VendasPage() {
                     {v.cliente ?? <span className="text-gray-400">—</span>}
                     {v.observacao && <div className="text-xs text-gray-500">{v.observacao}</div>}
                   </td>
-                  <td className="px-3 py-2">{v.kit_nome ?? "Avulsa"}</td>
-                  <td className="px-3 py-2 text-right">{formatarReais(v.preco_venda_centavos)}</td>
+                  <td className="px-3 py-2">{v.kits_resumo ?? "Avulsa"}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    {formatarReais(v.preco_venda_centavos)}
+                    {v.desconto_centavos > 0 && (
+                      <div className="text-xs text-red-600">
+                        desc. {String(v.desconto_percentual).replace(".", ",")}% (− {formatarReais(v.desconto_centavos)})
+                      </div>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right">{formatarReais(v.custo_total_centavos)}</td>
                   <td className={`px-3 py-2 text-right font-medium ${v.lucro_centavos < 0 ? "text-red-600" : "text-green-700"}`}>
                     {formatarReais(v.lucro_centavos)}
