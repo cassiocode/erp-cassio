@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CUSTO_ENERGIA_CENTAVOS, formatarMargem, precoComMargem } from "@/lib/custos";
+import { buscarFaltas, textoAlertaFaltas } from "@/lib/alertas";
 import { hojeISO } from "@/lib/datas";
 import { centavosParaTexto, formatarReais, paraCentavos } from "@/lib/dinheiro";
 
@@ -29,22 +30,61 @@ interface Item {
 const campo =
   "w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";
 
+export type StatusVenda = "rascunho" | "pre_venda" | "concluida";
+
+/** Rascunho ou pré-venda já gravada, para a tela de edição. */
+export interface VendaEmEdicao {
+  id: number;
+  status: StatusVenda;
+  data_venda: string;
+  data_prevista: string | null;
+  kit_id: number | null;
+  cliente: string | null;
+  preco_venda_centavos: number;
+  custo_energia_centavos: number;
+  observacao: string | null;
+  itens: { insumo_id: number; quantidade: number }[];
+}
+
+const OPCOES_STATUS: { valor: StatusVenda; rotulo: string; dica: string }[] = [
+  { valor: "concluida", rotulo: "Venda", dica: "Entregue agora. Tira do estoque e não volta." },
+  { valor: "pre_venda", rotulo: "Pré-venda", dica: "Entrega futura. Já tira do estoque; cancelar devolve." },
+  { valor: "rascunho", rotulo: "Rascunho", dica: "Só anotação. Não mexe no estoque." },
+];
+
 /**
- * Nova venda: escolher o kit (caneca branca ou preta) já traz a caneca, a caixa e o preço sugerido.
- * Dá para mudar quantidades, tirar itens, adicionar outros insumos (laço...) e editar o preço.
+ * Venda, pré-venda ou rascunho: escolher o kit (caneca branca ou preta) já traz a caneca, a caixa e o
+ * preço sugerido. Dá para mudar quantidades, tirar itens, adicionar outros insumos (laço...) e editar o preço.
+ * Com `venda`, edita um rascunho ou pré-venda.
  */
-export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos: InsumoOpcao[] }) {
+export default function FormVenda({
+  kits,
+  insumos,
+  venda,
+}: {
+  kits: KitOpcao[];
+  insumos: InsumoOpcao[];
+  venda?: VendaEmEdicao;
+}) {
   const router = useRouter();
-  const kitInicial = kits[0] ?? null;
-  const [kitId, setKitId] = useState<number | null>(kitInicial?.id ?? null);
+  const kitInicial = venda ? null : (kits[0] ?? null);
+  const [status, setStatus] = useState<StatusVenda>(venda?.status ?? "concluida");
+  const [dataPrevista, setDataPrevista] = useState(venda?.data_prevista ?? "");
+  const [kitId, setKitId] = useState<number | null>(venda ? venda.kit_id : (kitInicial?.id ?? null));
   const [itens, setItens] = useState<Item[]>(
-    kitInicial?.itens.map((i) => ({ insumo_id: i.insumo_id, quantidade: String(i.quantidade) })) ?? [],
+    (venda?.itens ?? kitInicial?.itens ?? []).map((i) => ({ insumo_id: i.insumo_id, quantidade: String(i.quantidade) })),
   );
-  const [preco, setPreco] = useState(kitInicial ? centavosParaTexto(kitInicial.preco_venda_centavos) : "");
-  const [cliente, setCliente] = useState("");
-  const [data, setData] = useState(hojeISO());
-  const [observacao, setObservacao] = useState("");
-  const [comEnergia, setComEnergia] = useState(true);
+  const [preco, setPreco] = useState(
+    venda
+      ? centavosParaTexto(venda.preco_venda_centavos)
+      : kitInicial
+        ? centavosParaTexto(kitInicial.preco_venda_centavos)
+        : "",
+  );
+  const [cliente, setCliente] = useState(venda?.cliente ?? "");
+  const [data, setData] = useState(venda?.data_venda ?? hojeISO());
+  const [observacao, setObservacao] = useState(venda?.observacao ?? "");
+  const [comEnergia, setComEnergia] = useState(venda ? venda.custo_energia_centavos > 0 : true);
   const [novoInsumo, setNovoInsumo] = useState("");
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
@@ -116,10 +156,27 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
     setEnviando(true);
     setErros({});
     try {
-      const resposta = await fetch("/api/vendas", {
-        method: "POST",
+      const prevista = status === "concluida" ? null : dataPrevista || null;
+      // Antes de tirar do estoque, avisa se vai faltar material para alguma pré-venda (ou para esta)
+      if (status !== "rascunho") {
+        const faltas = await buscarFaltas({ venda_id: venda?.id ?? null, status, data_prevista: prevista, cliente, itens });
+        if (faltas.length > 0 && !confirm(textoAlertaFaltas(faltas, "Salvar mesmo assim?"))) return;
+      }
+
+      const resposta = await fetch(venda ? `/api/vendas/${venda.id}` : "/api/vendas", {
+        method: venda ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data_venda: data, kit_id: kitId, cliente, preco_venda: preco, com_energia: comEnergia, observacao, itens }),
+        body: JSON.stringify({
+          status,
+          data_prevista: prevista,
+          data_venda: data,
+          kit_id: kitId,
+          cliente,
+          preco_venda: preco,
+          com_energia: comEnergia,
+          observacao,
+          itens,
+        }),
       });
       if (resposta.ok) {
         router.push("/vendas");
@@ -142,6 +199,26 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
   return (
     <form onSubmit={enviar} className="max-w-3xl space-y-5 rounded border border-gray-200 bg-white p-5">
       {erros.geral && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{erros.geral}</p>}
+
+      <div>
+        <span className="mb-2 block text-sm font-medium">Tipo</span>
+        <div className="flex flex-wrap gap-2">
+          {OPCOES_STATUS.map((o) => (
+            <button
+              key={o.valor}
+              type="button"
+              onClick={() => setStatus(o.valor)}
+              className={`rounded border px-4 py-2 text-sm ${
+                o.valor === status ? "border-blue-600 bg-blue-50 font-medium text-blue-800" : "border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {o.rotulo}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-gray-500">{OPCOES_STATUS.find((o) => o.valor === status)?.dica}</p>
+        {mensagem("status")}
+      </div>
 
       <div>
         <span className="mb-2 block text-sm font-medium">Kit</span>
@@ -269,7 +346,7 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
         </label>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`grid gap-4 ${status === "concluida" ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">Preço de venda (R$) *</span>
           <input value={preco} onChange={(e) => setPreco(e.target.value)} inputMode="decimal" className={campo} />
@@ -281,10 +358,17 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
           {mensagem("cliente")}
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Data da venda</span>
+          <span className="mb-1 block font-medium">{status === "concluida" ? "Data da venda" : "Data do pedido"}</span>
           <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={campo} />
           {mensagem("data_venda")}
         </label>
+        {status !== "concluida" && (
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium">Entrega prevista{status === "pre_venda" ? " *" : ""}</span>
+            <input type="date" value={dataPrevista} onChange={(e) => setDataPrevista(e.target.value)} className={campo} />
+            {mensagem("data_prevista")}
+          </label>
+        )}
       </div>
 
       <div className="grid gap-3 rounded border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-3">
@@ -321,7 +405,15 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
           disabled={enviando}
           className="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {enviando ? "Salvando..." : "Registrar venda"}
+          {enviando
+            ? "Salvando..."
+            : venda
+              ? "Salvar alterações"
+              : status === "concluida"
+                ? "Registrar venda"
+                : status === "pre_venda"
+                  ? "Registrar pré-venda"
+                  : "Salvar rascunho"}
         </button>
         <button
           type="button"
