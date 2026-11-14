@@ -30,6 +30,21 @@ export function paraCentavos(texto: string): number | null {
   return Number.isSafeInteger(centavos) ? centavos : null;
 }
 
+/**
+ * Custo de uma unidade de uso a partir do valor pago na compra e do rendimento.
+ * Ex.: pacote de papel R$ 45,00 que rende 100 folhas -> 45 centavos por folha.
+ * Arredonda para o centavo mais próximo.
+ */
+export function custoPorUnidade(valorPagoCentavos: number, rendimento: number): number {
+  if (!Number.isInteger(valorPagoCentavos) || valorPagoCentavos < 0) {
+    throw new RangeError("O valor pago deve ser um inteiro em centavos, maior ou igual a zero");
+  }
+  if (!Number.isInteger(rendimento) || rendimento < 1) {
+    throw new RangeError("O rendimento deve ser um número inteiro maior ou igual a 1");
+  }
+  return Math.round(valorPagoCentavos / rendimento);
+}
+
 /** Centavos -> texto para preencher campo de formulário. Ex.: 1250 -> "12,50" */
 export function centavosParaTexto(centavos: number): string {
   const reais = Math.floor(centavos / 100);

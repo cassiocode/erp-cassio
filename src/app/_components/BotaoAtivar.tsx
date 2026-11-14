@@ -3,19 +3,20 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export default function BotaoAtivar({ id, ativo }: { id: number; ativo: boolean }) {
+/** Botão Inativar/Reativar: envia PATCH { ativo } para `url` e recarrega a tela. */
+export default function BotaoAtivar({ url, ativo }: { url: string; ativo: boolean }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(false);
 
   async function alternar() {
     setCarregando(true);
     try {
-      const resposta = await fetch(`/api/materiais/${id}`, {
+      const resposta = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ativo: !ativo }),
       });
-      if (!resposta.ok) alert("Não foi possível alterar a situação do material.");
+      if (!resposta.ok) alert("Não foi possível alterar a situação.");
       router.refresh();
     } finally {
       setCarregando(false);

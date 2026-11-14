@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { centavosParaTexto, formatarReais, paraCentavos } from "./dinheiro";
+import { centavosParaTexto, custoPorUnidade, formatarReais, paraCentavos } from "./dinheiro";
 
 // Intl usa espaço não separável entre "R$" e o valor
 const normalizar = (s: string) => s.replace(/ /g, " ");
@@ -41,6 +41,38 @@ describe("paraCentavos", () => {
     expect(paraCentavos("12,555")).toBeNull();
     expect(paraCentavos("1,2,3")).toBeNull();
     expect(paraCentavos("12,")).toBeNull();
+  });
+});
+
+describe("custoPorUnidade", () => {
+  it("com rendimento 1, o custo é o próprio valor pago", () => {
+    expect(custoPorUnidade(1250, 1)).toBe(1250);
+  });
+
+  it("divide o valor pago pelo rendimento", () => {
+    expect(custoPorUnidade(4500, 100)).toBe(45); // papel: R$ 45,00 / 100 folhas
+    expect(custoPorUnidade(1800, 200)).toBe(9); // fita: R$ 18,00 / 200 canecas
+  });
+
+  it("arredonda para o centavo mais próximo", () => {
+    expect(custoPorUnidade(1000, 3)).toBe(333); // 333,33...
+    expect(custoPorUnidade(2000, 3)).toBe(667); // 666,66...
+    expect(custoPorUnidade(5, 2)).toBe(3); // 2,5 -> 3
+  });
+
+  it("valor pago zero dá custo zero", () => {
+    expect(custoPorUnidade(0, 10)).toBe(0);
+  });
+
+  it("rejeita rendimento menor que 1 ou fracionado", () => {
+    expect(() => custoPorUnidade(1000, 0)).toThrow(RangeError);
+    expect(() => custoPorUnidade(1000, -2)).toThrow(RangeError);
+    expect(() => custoPorUnidade(1000, 1.5)).toThrow(RangeError);
+  });
+
+  it("rejeita valor pago negativo ou fracionado", () => {
+    expect(() => custoPorUnidade(-1, 1)).toThrow(RangeError);
+    expect(() => custoPorUnidade(10.5, 1)).toThrow(RangeError);
   });
 });
 
