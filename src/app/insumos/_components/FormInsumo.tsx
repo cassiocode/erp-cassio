@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { custoPorUnidade, formatarReais, paraCentavos } from "@/lib/dinheiro";
+import CampoNomeComSugestoes, { type SugestaoInsumo } from "./CampoNomeComSugestoes";
 
 export interface ValoresInsumo {
   nome: string;
@@ -31,9 +32,11 @@ function previaCusto(valorPago: string, quantidade: string): number | null {
 export default function FormInsumo({
   id,
   valores = VALORES_VAZIOS,
+  sugestoes,
 }: {
   id?: number; // se vier, é edição
   valores?: ValoresInsumo;
+  sugestoes?: SugestaoInsumo[]; // insumos já cadastrados, para o campo Nome do cadastro novo
 }) {
   const router = useRouter();
   const [form, setForm] = useState(valores);
@@ -83,12 +86,21 @@ export default function FormInsumo({
 
       <label className="block text-sm">
         <span className="mb-1 block font-medium">Nome *</span>
-        <input
-          value={form.nome}
-          onChange={(e) => atualizar("nome", e.target.value)}
-          className={campo}
-          placeholder="Ex.: Caneca branca 325ml"
-        />
+        {sugestoes ? (
+          <CampoNomeComSugestoes
+            valor={form.nome}
+            aoMudar={(v) => atualizar("nome", v)}
+            sugestoes={sugestoes}
+            className={campo}
+          />
+        ) : (
+          <input
+            value={form.nome}
+            onChange={(e) => atualizar("nome", e.target.value)}
+            className={campo}
+            placeholder="Ex.: Caneca branca 325ml"
+          />
+        )}
         {mensagem("nome")}
       </label>
 
