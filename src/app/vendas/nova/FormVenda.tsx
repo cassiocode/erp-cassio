@@ -59,14 +59,20 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
   const precoCentavos = paraCentavos(preco);
   const lucro = precoCentavos === null ? null : precoCentavos - custoTotal;
 
-  /** Quanto o item soma no preço: só insumos fora do kit e com margem (custo × (1 + margem)). */
+  /** Preço unitário com margem, se a margem vale para o item (insumo fora do kit e com margem); senão null. */
+  function precoUnitarioComMargem(insumoId: number, idDoKit: number | null): number | null {
+    const insumo = porId.get(insumoId);
+    const doKit = kits.find((k) => k.id === idDoKit)?.itens.some((i) => i.insumo_id === insumoId);
+    if (doKit || !insumo || insumo.margem_lucro_percentual === null || insumo.custo_unitario_centavos === null) return null;
+    return precoComMargem(insumo.custo_unitario_centavos, insumo.margem_lucro_percentual);
+  }
+
+  /** Quanto o item soma no preço: quantidade × preço com margem (0 se a margem não vale para ele). */
   function valorNoPreco(item: Item, idDoKit: number | null): number {
-    const insumo = porId.get(item.insumo_id);
     const qtd = Number(item.quantidade);
-    const doKit = kits.find((k) => k.id === idDoKit)?.itens.some((i) => i.insumo_id === item.insumo_id);
-    if (doKit || !insumo || insumo.margem_lucro_percentual === null || insumo.custo_unitario_centavos === null) return 0;
-    if (!Number.isInteger(qtd) || qtd <= 0) return 0;
-    return qtd * precoComMargem(insumo.custo_unitario_centavos, insumo.margem_lucro_percentual);
+    const unitario = precoUnitarioComMargem(item.insumo_id, idDoKit);
+    if (unitario === null || !Number.isInteger(qtd) || qtd <= 0) return 0;
+    return qtd * unitario;
   }
 
   const totalNoPreco = (lista: Item[], idDoKit: number | null) =>
@@ -164,6 +170,7 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
                 <th className="px-3 py-2">Insumo</th>
                 <th className="w-24 px-3 py-2">Qtd.</th>
                 <th className="px-3 py-2 text-right">Custo un.</th>
+                <th className="px-3 py-2 text-right">Custo + margem</th>
                 <th className="px-3 py-2 text-right">Subtotal</th>
                 <th className="px-3 py-2" />
               </tr>
@@ -171,7 +178,7 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
             <tbody>
               {itens.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-3 py-4 text-center text-gray-500">
                     Nenhum insumo. Escolha um kit ou adicione abaixo.
                   </td>
                 </tr>
@@ -179,6 +186,8 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
               {itens.map((item) => {
                 const insumo = porId.get(item.insumo_id);
                 const custo = insumo?.custo_unitario_centavos ?? 0;
+                const comMargem = precoUnitarioComMargem(item.insumo_id, kitId);
+                const unitarioFinal = comMargem ?? custo; // sem margem (ou item do kit): o próprio custo
                 const qtd = Number(item.quantidade);
                 return (
                   <tr key={item.insumo_id} className="border-b border-gray-100">
@@ -189,10 +198,9 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
                           ({insumo.quantidade_estoque} em estoque)
                         </span>
                       )}
-                      {insumo?.margem_lucro_percentual != null && valorNoPreco(item, kitId) > 0 && (
+                      {comMargem !== null && insumo?.margem_lucro_percentual != null && (
                         <div className="text-xs text-green-700">
-                          + {formatarReais(valorNoPreco(item, kitId))} no preço (margem{" "}
-                          {formatarMargem(insumo.margem_lucro_percentual)})
+                          margem {formatarMargem(insumo.margem_lucro_percentual)} (soma no preço de venda)
                         </div>
                       )}
                     </td>
@@ -211,8 +219,11 @@ export default function FormVenda({ kits, insumos }: { kits: KitOpcao[]; insumos
                       />
                     </td>
                     <td className="px-3 py-2 text-right">{formatarReais(custo)}</td>
+                    <td className={`px-3 py-2 text-right ${comMargem !== null ? "font-medium text-green-700" : "text-gray-500"}`}>
+                      {formatarReais(unitarioFinal)}
+                    </td>
                     <td className="px-3 py-2 text-right">
-                      {Number.isInteger(qtd) && qtd > 0 ? formatarReais(qtd * custo) : "—"}
+                      {Number.isInteger(qtd) && qtd > 0 ? formatarReais(qtd * unitarioFinal) : "—"}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <button
