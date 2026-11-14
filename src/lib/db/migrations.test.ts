@@ -65,7 +65,7 @@ describe("migrations", () => {
     rodarMigrations(db);
     rodarMigrations(db);
     const versoes = db.prepare("SELECT versao FROM schema_migrations ORDER BY versao").all().map((v) => v.versao);
-    expect(versoes).toEqual([1, 2, 3, 4, 5]);
+    expect(versoes).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("migration 5 liga os kits padrão aos insumos ativos pelo nome", () => {
@@ -79,8 +79,9 @@ describe("migrations", () => {
     inserir.run("Caneca Preta 325 - Top", 1);
     inserir.run("Caixa Para Caneca De Porcelana 325 ML", 1);
     inserir.run("Laço Azul", 1);
+    inserir.run("Tinta Sublimática", 1); // não é papel: ignorada
 
-    rodarMigrations(db);
+    rodarMigrations(db, 5);
 
     const kits = db
       .prepare(
@@ -95,6 +96,32 @@ describe("migrations", () => {
       { kit: "Caneca branca", preco: 2990, insumo: "Caneca branca 325ml - Live" },
       { kit: "Caneca preta", preco: 3490, insumo: "Caixa Para Caneca De Porcelana 325 ML" },
       { kit: "Caneca preta", preco: 3490, insumo: "Caneca Preta 325 - Top" },
+    ]);
+  });
+
+  it("migration 6 põe 1 folha de papel de sublimação em cada kit", () => {
+    const db = new DatabaseSync(":memory:");
+    rodarMigrations(db, 4);
+    const inserir = db.prepare(
+      "INSERT INTO insumos (nome, quantidade_estoque, ativo, criado_em, atualizado_em) VALUES (?, 0, 1, 'x', 'x')",
+    );
+    inserir.run("Caneca branca 325ml - Live");
+    inserir.run("Tinta Genesis Sublimática");
+    inserir.run("Papel Sublimação Fundo Rosa - Jojo");
+
+    rodarMigrations(db);
+
+    const itens = db
+      .prepare(
+        `SELECT k.nome AS kit, i.nome AS insumo, ki.quantidade
+           FROM kits k JOIN kit_itens ki ON ki.kit_id = k.id JOIN insumos i ON i.id = ki.insumo_id
+          WHERE i.nome LIKE 'Papel%' OR i.nome LIKE 'Tinta%' ORDER BY k.ordem`,
+      )
+      .all()
+      .map((l) => ({ ...l }));
+    expect(itens).toEqual([
+      { kit: "Caneca branca", insumo: "Papel Sublimação Fundo Rosa - Jojo", quantidade: 1 },
+      { kit: "Caneca preta", insumo: "Papel Sublimação Fundo Rosa - Jojo", quantidade: 1 },
     ]);
   });
 });

@@ -214,6 +214,18 @@ const migrations: Migration[] = [
         ) WHERE insumo_id IS NOT NULL;
     `,
   },
+  {
+    versao: 6,
+    nome: "papel_sublimacao_nos_kits",
+    sql: `
+      -- Toda caneca vendida gasta 1 folha de papel de sublimação (o primeiro papel ativo que achar)
+      INSERT OR IGNORE INTO kit_itens (kit_id, insumo_id, quantidade)
+        SELECT k.id, p.id, 1
+          FROM kits k,
+               (SELECT MIN(i.id) AS id FROM insumos i WHERE i.ativo = 1 AND lower(i.nome) LIKE 'papel%sublima%') p
+         WHERE p.id IS NOT NULL;
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */
