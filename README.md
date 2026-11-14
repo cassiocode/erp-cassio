@@ -31,7 +31,8 @@ O custo total de cada produto (soma dos insumos usados) fica na futura tela de p
 - Arquivo: `data/estoque.db` (criado automaticamente; a pasta `data/` não vai para o git).
 - Para usar outro caminho: variável de ambiente `DB_PATH`.
 - Migrations rodam sozinhas na primeira conexão (tabela `schema_migrations`).
-  Antes de atualizar o sistema, vale copiar `data/estoque.db` como backup.
+  Antes de atualizar o sistema, vale fazer backup: **pare o `npm run dev`** e copie `data/estoque.db`
+  (com o sistema rodando, as alterações recentes ficam no arquivo `estoque.db-wal` e a cópia sai incompleta).
 
 ## Dados de exemplo
 ```bash
