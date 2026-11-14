@@ -85,7 +85,12 @@ export default function VendasPage() {
               return (
                 <tr key={v.id} className={`border-b border-gray-100 ${v.status === "pre_venda" ? "bg-amber-50/40" : ""}`}>
                   <td className="px-3 py-2">
-                    <span className={`rounded px-2 py-0.5 text-xs ${rotulo.classe}`}>{rotulo.texto}</span>
+                    <div className="flex flex-wrap gap-1">
+                      <span className={`rounded px-2 py-0.5 text-xs ${rotulo.classe}`}>{rotulo.texto}</span>
+                      {faltas.length > 0 && (
+                        <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white">Sem material</span>
+                      )}
+                    </div>
                     {faltas.length > 0 && (
                       <div className="mt-1 text-xs font-medium text-red-600" title={faltas.map((f) => `${f.falta}× ${f.insumo_nome} para ${descreverDono(f)}`).join("\n")}>
                         Falta: {faltas.map((f) => `${f.falta}× ${f.insumo_nome}`).join(", ")}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { lerId } from "@/lib/api";
-import { buscarVenda } from "@/lib/db/repositories/vendas";
+import { buscarVenda, calcularFaltas } from "@/lib/db/repositories/vendas";
 import { dadosDoFormulario } from "../../dadosFormulario";
 import FormVenda from "../../nova/FormVenda";
 
@@ -38,14 +38,24 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
     })),
   ];
 
+  // Material que falta para esta pré-venda (estoque negativo, entrega mais próxima tem prioridade)
+  const faltas: Record<number, number> = {};
+  for (const f of calcularFaltas()) {
+    if (f.venda_id === venda.id) faltas[f.insumo_id] = (faltas[f.insumo_id] ?? 0) + f.falta;
+  }
+
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold">
+      <h1 className="mb-4 flex items-center gap-3 text-2xl font-semibold">
         Editar {venda.status === "pre_venda" ? "pré-venda" : "rascunho"} #{venda.id}
+        {Object.keys(faltas).length > 0 && (
+          <span className="rounded bg-red-100 px-2 py-0.5 text-sm font-medium text-red-700">Sem material</span>
+        )}
       </h1>
       <FormVenda
         kits={kits}
         insumos={todos}
+        faltas={faltas}
         venda={{
           id: venda.id,
           status: venda.status,

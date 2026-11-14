@@ -61,10 +61,12 @@ export default function FormVenda({
   kits,
   insumos,
   venda,
+  faltas = {},
 }: {
   kits: KitOpcao[];
   insumos: InsumoOpcao[];
   venda?: VendaEmEdicao;
+  faltas?: Record<number, number>; // pré-venda sem material: insumo_id -> quantidade que falta
 }) {
   const router = useRouter();
   const kitInicial = venda ? null : (kits[0] ?? null);
@@ -192,6 +194,11 @@ export default function FormVenda({
     }
   }
 
+  // Faltas da pré-venda gravada, só dos itens que continuam nela
+  const semMaterial = itens
+    .filter((i) => (faltas[i.insumo_id] ?? 0) > 0)
+    .map((i) => ({ nome: porId.get(i.insumo_id)?.nome ?? `Insumo ${i.insumo_id}`, falta: faltas[i.insumo_id] }));
+
   const mensagem = (nome: string) =>
     erros[nome] ? <p className="mt-1 text-xs text-red-600">{erros[nome]}</p> : null;
   const disponiveis = insumos.filter((i) => !itens.some((item) => item.insumo_id === i.id));
@@ -218,6 +225,13 @@ export default function FormVenda({
         </div>
         <p className="mt-1 text-xs text-gray-500">{OPCOES_STATUS.find((o) => o.valor === status)?.dica}</p>
         {mensagem("status")}
+        {semMaterial.length > 0 && (
+          <div className="mt-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <strong>⚠️ Pré-venda sem material.</strong> Não há estoque de:{" "}
+            {semMaterial.map(({ nome, falta }) => `${falta}× ${nome}`).join(", ")}. Reponha o estoque (nova compra)
+            ou ajuste os itens.
+          </div>
+        )}
       </div>
 
       <div>
@@ -266,14 +280,20 @@ export default function FormVenda({
                 const comMargem = precoUnitarioComMargem(item.insumo_id, kitId);
                 const unitarioFinal = comMargem ?? custo; // sem margem (ou item do kit): o próprio custo
                 const qtd = Number(item.quantidade);
+                const falta = faltas[item.insumo_id] ?? 0;
                 return (
-                  <tr key={item.insumo_id} className="border-b border-gray-100">
+                  <tr key={item.insumo_id} className={`border-b border-gray-100 ${falta > 0 ? "bg-red-50" : ""}`}>
                     <td className="px-3 py-2">
                       {insumo?.nome ?? `Insumo ${item.insumo_id}`}
                       {insumo && (
                         <span className={`ml-2 text-xs ${insumo.quantidade_estoque < 1 ? "text-red-600" : "text-gray-500"}`}>
                           ({insumo.quantidade_estoque} em estoque)
                         </span>
+                      )}
+                      {falta > 0 && (
+                        <div className="mt-1 text-xs font-semibold text-red-600">
+                          ⚠️ Não há esse material: falta{falta > 1 ? "m" : ""} {falta} para esta pré-venda
+                        </div>
                       )}
                       {comMargem !== null && insumo?.margem_lucro_percentual != null && (
                         <div className="text-xs text-green-700">
