@@ -28,7 +28,9 @@ Abra http://localhost:3000 (vai para `/insumos`).
 O custo total de cada produto (soma dos insumos usados) fica na futura tela de produtos.
 
 ## Banco de dados
-- Arquivo: `data/estoque.db` (criado automaticamente; a pasta `data/` não vai para o git).
+- Arquivo: `data/estoque.db` (criado automaticamente). Ele **vai para o git** (repositório privado);
+  backups e os arquivos `-wal`/`-shm` do SQLite ficam fora.
+- Antes de commitar o banco, grave as alterações pendentes no arquivo principal: `npm run db:checkpoint`.
 - Para usar outro caminho: variável de ambiente `DB_PATH`.
 - Migrations rodam sozinhas na primeira conexão (tabela `schema_migrations`).
   Antes de atualizar o sistema, vale fazer backup: **pare o `npm run dev`** e copie `data/estoque.db`
