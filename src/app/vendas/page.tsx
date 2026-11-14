@@ -34,8 +34,8 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
   const custo = concluidas.reduce((s, v) => s + v.custo_total_centavos, 0);
   const lucro = faturamento - custo;
   // Em aberto = preço das pré-vendas menos o que o cliente já pagou (sinal)
-  const aReceber = preVendas.reduce((s, v) => s + v.preco_venda_centavos - v.valor_pago_centavos, 0);
-  const jaPago = preVendas.reduce((s, v) => s + v.valor_pago_centavos, 0);
+  const aReceber = preVendas.reduce((s, v) => s + v.preco_venda_centavos - (v.valor_pago_centavos ?? 0), 0);
+  const jaPago = preVendas.reduce((s, v) => s + (v.valor_pago_centavos ?? 0), 0);
   const hoje = hojeISO();
 
   const faltasPorVenda = new Map<number, Falta[]>();
@@ -150,17 +150,18 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
                         desc. {String(v.desconto_percentual).replace(".", ",")}% (− {formatarReais(v.desconto_centavos)})
                       </div>
                     )}
-                    {v.status === "pre_venda" && (
+                    {/* Só quando o cliente já pagou algo (sinal): mostra o pago e quanto falta */}
+                    {v.status === "pre_venda" && (v.valor_pago_centavos ?? 0) > 0 && (
                       <div className="text-xs">
-                        {v.valor_pago_centavos > 0 ? (
+                        <span className="text-green-700">pago {formatarReais(v.valor_pago_centavos)}</span>
+                        {v.preco_venda_centavos > v.valor_pago_centavos && (
                           <>
-                            <span className="text-green-700">pago {formatarReais(v.valor_pago_centavos)}</span>
                             {" · "}
+                            <span className="font-medium text-amber-800">
+                              falta {formatarReais(v.preco_venda_centavos - v.valor_pago_centavos)}
+                            </span>
                           </>
-                        ) : null}
-                        <span className="font-medium text-amber-800">
-                          falta {formatarReais(v.preco_venda_centavos - v.valor_pago_centavos)}
-                        </span>
+                        )}
                       </div>
                     )}
                   </td>
