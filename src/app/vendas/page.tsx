@@ -33,7 +33,9 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
   const faturamento = concluidas.reduce((s, v) => s + v.preco_venda_centavos, 0);
   const custo = concluidas.reduce((s, v) => s + v.custo_total_centavos, 0);
   const lucro = faturamento - custo;
-  const aReceber = preVendas.reduce((s, v) => s + v.preco_venda_centavos, 0);
+  // Em aberto = preço das pré-vendas menos o que o cliente já pagou (sinal)
+  const aReceber = preVendas.reduce((s, v) => s + v.preco_venda_centavos - v.valor_pago_centavos, 0);
+  const jaPago = preVendas.reduce((s, v) => s + v.valor_pago_centavos, 0);
   const hoje = hojeISO();
 
   const faltasPorVenda = new Map<number, Falta[]>();
@@ -62,7 +64,12 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
         <Resumo titulo={`Faturamento (${concluidas.length} vendas)`} valor={formatarReais(faturamento)} />
         <Resumo titulo="Custo (insumos + energia)" valor={formatarReais(custo)} />
         <Resumo titulo={lucro < 0 ? "Prejuízo" : "Lucro"} valor={formatarReais(lucro)} cor={lucro < 0 ? "text-red-600" : "text-green-700"} />
-        <Resumo titulo={`Pré-vendas em aberto (${preVendas.length})`} valor={formatarReais(aReceber)} cor="text-amber-700" />
+        <Resumo
+          titulo={`Pré-vendas em aberto (${preVendas.length})`}
+          valor={formatarReais(aReceber)}
+          cor="text-amber-700"
+          detalhe={jaPago > 0 ? `já recebido de sinal: ${formatarReais(jaPago)}` : undefined}
+        />
       </div>
 
       <nav className="flex flex-wrap gap-2" aria-label="Filtrar por status">
@@ -143,6 +150,19 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
                         desc. {String(v.desconto_percentual).replace(".", ",")}% (− {formatarReais(v.desconto_centavos)})
                       </div>
                     )}
+                    {v.status === "pre_venda" && (
+                      <div className="text-xs">
+                        {v.valor_pago_centavos > 0 ? (
+                          <>
+                            <span className="text-green-700">pago {formatarReais(v.valor_pago_centavos)}</span>
+                            {" · "}
+                          </>
+                        ) : null}
+                        <span className="font-medium text-amber-800">
+                          falta {formatarReais(v.preco_venda_centavos - v.valor_pago_centavos)}
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right">{formatarReais(v.custo_total_centavos)}</td>
                   <td className={`px-3 py-2 text-right font-medium ${v.lucro_centavos < 0 ? "text-red-600" : "text-green-700"}`}>
@@ -167,11 +187,12 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
   );
 }
 
-function Resumo({ titulo, valor, cor = "" }: { titulo: string; valor: string; cor?: string }) {
+function Resumo({ titulo, valor, cor = "", detalhe }: { titulo: string; valor: string; cor?: string; detalhe?: string }) {
   return (
     <div className="rounded border border-gray-200 bg-white px-4 py-3">
       <div className="text-xs text-gray-500">{titulo}</div>
       <div className={`text-lg font-semibold ${cor}`}>{valor}</div>
+      {detalhe && <div className="text-xs text-gray-500">{detalhe}</div>}
     </div>
   );
 }
