@@ -37,7 +37,7 @@ export default function CampoNomeComSugestoes({
 
   function abrir(s: SugestaoInsumo) {
     setAberto(false);
-    router.push(`/insumos/${s.id}/editar`);
+    router.push(`/insumos/${s.id}/compras`);
   }
 
   function teclado(e: React.KeyboardEvent<HTMLInputElement>) {

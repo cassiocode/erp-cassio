@@ -102,6 +102,9 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex justify-end gap-3">
+                    <Link href={`/insumos/${i.id}/compras`} className="text-blue-700 hover:underline">
+                      Compras
+                    </Link>
                     <Link href={`/insumos/${i.id}/editar`} className="text-blue-700 hover:underline">
                       Editar
                     </Link>

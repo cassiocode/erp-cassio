@@ -104,6 +104,9 @@ export default function FormInsumo({
               </strong>{" "}
               <span className="text-gray-500">({insumo.quantidade_comprada} comprados)</span>
             </span>
+            <Link href={`/insumos/${insumo.id}/compras`} className="text-blue-700 hover:underline">
+              Ver compras / nova compra
+            </Link>
           </div>
 
           <label className="block text-sm sm:w-1/2">

@@ -19,9 +19,11 @@ Abra http://localhost:3000 (vai para `/insumos`).
 
 ## Telas
 - **Insumos** (`/insumos`): itens que compõem o custo dos produtos (canecas branca e preta, caixas,
-  embalagens, papel, tinta, brindes). Cada insumo tem **total pago** e **quantidade comprada**; o sistema
-  calcula o **custo por unidade** (ex.: 12 canecas por R$ 126,00 = R$ 10,50 cada).
-  A quantidade em estoque pode ficar negativa.
+  embalagens, papel, tinta, brindes). No cadastro você informa a primeira compra: **total pago** e
+  **quantidade comprada** (ex.: 12 canecas por R$ 126,00 = R$ 10,50 cada). Ao digitar o nome, aparecem
+  os insumos já cadastrados. A quantidade em estoque pode ficar negativa.
+- **Compras do insumo** (`/insumos/:id/compras`): lance novas compras (8 em estoque + 12 comprados = 20).
+  O custo do insumo é a **média ponderada** das compras. Apagar uma compra tira a quantidade do estoque.
 
 O custo total de cada produto (soma dos insumos usados) fica na futura tela de produtos.
 
