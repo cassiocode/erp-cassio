@@ -23,7 +23,10 @@ Abra http://localhost:3000 (vai para `/insumos`).
   estoque). A lista mostra as pré-vendas no topo, pela entrega mais próxima. **Concluir** uma pré-venda não
   baixa de novo. Se uma venda, pré-venda ou baixa deixar o estoque negativo, aparece o aviso de para qual
   pré-venda vai faltar material (a entrega mais próxima tem prioridade) e a pré-venda fica marcada com
-  "Falta". Lista com faturamento, custo e lucro (só vendas concluídas). **Nova venda** (`/vendas/nova`): escolha o kit
+  "Falta". Lista com faturamento, custo e lucro (só vendas concluídas).
+  Cada venda tem a **quantidade de canecas** de cada kit (dá para misturar branca e preta). **Desconto
+  progressivo** só sobre o preço das canecas: 3 a 5 canecas = 5%, 6 ou mais = 10%. O desconto pode ser
+  trocado por outro valor (ex.: 20%) ou tirado; ele reduz o preço e o lucro, o custo não muda. **Nova venda** (`/vendas/nova`): escolha o kit
   (caneca branca R$ 29,90 ou caneca preta R$ 34,90, os dois já com a caixa de porcelana 325 ml), ajuste
   quantidades, adicione outros insumos (laço...) e edite o preço. Os kits já trazem 1 folha de papel de
   sublimação. Toda venda soma um custo fixo de energia de R$ 0,50 (dá para desmarcar). A venda tira os
