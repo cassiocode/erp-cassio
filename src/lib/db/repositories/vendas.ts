@@ -1,3 +1,4 @@
+import { valorDesconto } from "../../descontos";
 import { getDb, transacao } from "../connection";
 import { buscarInsumoPorId } from "./insumos";
 
@@ -33,15 +34,24 @@ export interface ItemVenda {
   custo_unitario_centavos: number; // custo médio do insumo quando a venda foi salva
 }
 
+export interface KitDaVenda {
+  kit_id: number;
+  nome: string;
+  quantidade: number; // canecas deste kit
+  preco_unitario_centavos: number; // preço do kit no dia
+}
+
 export interface Venda {
   id: number;
   status: StatusVenda;
   data_venda: string; // AAAA-MM-DD
   data_prevista: string | null; // previsão de entrega
-  kit_id: number | null;
-  kit_nome: string | null;
+  kits_resumo: string | null; // "2× Caneca branca, 1× Caneca preta"; null = avulsa
+  quantidade_canecas: number;
+  desconto_percentual: number; // sobre o preço dos kits
+  desconto_centavos: number;
   cliente: string | null;
-  preco_venda_centavos: number;
+  preco_venda_centavos: number; // preço final (já com desconto)
   custo_energia_centavos: number; // 0 quando a energia foi desmarcada
   custo_total_centavos: number; // insumos + energia
   lucro_centavos: number; // pode ser negativo (prejuízo)
@@ -50,6 +60,7 @@ export interface Venda {
 }
 
 export interface VendaComItens extends Venda {
+  kits: KitDaVenda[];
   itens: ItemVenda[];
 }
 
@@ -57,7 +68,8 @@ export interface DadosVenda {
   status: StatusVenda;
   data_venda: string;
   data_prevista: string | null;
-  kit_id: number | null;
+  kits: { kit_id: number; quantidade: number }[];
+  desconto_percentual: number; // 0 a 100, sobre o preço dos kits
   cliente: string | null;
   preco_venda_centavos: number;
   custo_energia_centavos: number;
@@ -109,12 +121,14 @@ export function listarKits(): Kit[] {
 }
 
 const SELECT_VENDA = `
-  SELECT v.*, k.nome AS kit_nome,
+  SELECT v.*,
+         (SELECT group_concat(vk.quantidade || '× ' || k.nome, ', ')
+            FROM venda_kits vk JOIN kits k ON k.id = vk.kit_id WHERE vk.venda_id = v.id) AS kits_resumo,
+         COALESCE((SELECT SUM(vk.quantidade) FROM venda_kits vk WHERE vk.venda_id = v.id), 0) AS quantidade_canecas,
          v.custo_energia_centavos +
          COALESCE((SELECT SUM(vi.quantidade * vi.custo_unitario_centavos) FROM venda_itens vi WHERE vi.venda_id = v.id), 0)
            AS custo_total_centavos
-    FROM vendas v
-    LEFT JOIN kits k ON k.id = v.kit_id`;
+    FROM vendas v`;
 
 function paraVenda(linha: unknown): Venda {
   const v = linha as Omit<Venda, "lucro_centavos">;
@@ -150,9 +164,20 @@ function itensDaVenda(id: number): ItemVenda[] {
     .map((i) => ({ ...(i as unknown as ItemVenda) }));
 }
 
+function kitsDaVenda(id: number): KitDaVenda[] {
+  return getDb()
+    .prepare(
+      `SELECT vk.kit_id, k.nome, vk.quantidade, vk.preco_unitario_centavos
+         FROM venda_kits vk JOIN kits k ON k.id = vk.kit_id
+        WHERE vk.venda_id = ? ORDER BY k.ordem, k.nome`,
+    )
+    .all(id)
+    .map((k) => ({ ...(k as unknown as KitDaVenda) }));
+}
+
 export function buscarVenda(id: number): VendaComItens | null {
   const linha = getDb().prepare(`${SELECT_VENDA} WHERE v.id = ?`).get(id);
-  return linha ? { ...paraVenda(linha), itens: itensDaVenda(id) } : null;
+  return linha ? { ...paraVenda(linha), kits: kitsDaVenda(id), itens: itensDaVenda(id) } : null;
 }
 
 /** Junta itens repetidos do mesmo insumo somando as quantidades. */
@@ -183,14 +208,23 @@ function diferenca(nova: Map<number, number>, antiga: Map<number, number>): Map<
 }
 
 function validar(dados: DadosVenda) {
-  if (dados.kit_id !== null && !getDb().prepare("SELECT 1 FROM kits WHERE id = ?").get(dados.kit_id)) {
-    throw new ItemInvalidoError("Kit não encontrado");
-  }
-  return juntarItens(dados.itens).map((item) => {
+  const precoKit = getDb().prepare("SELECT preco_venda_centavos FROM kits WHERE id = ?");
+  const porKit = new Map<number, number>();
+  for (const { kit_id, quantidade } of dados.kits) porKit.set(kit_id, (porKit.get(kit_id) ?? 0) + quantidade);
+  const kits = [...porKit].map(([kit_id, quantidade]) => {
+    const kit = precoKit.get(kit_id) as { preco_venda_centavos: number } | undefined;
+    if (!kit) throw new ItemInvalidoError("Kit não encontrado");
+    return { kit_id, quantidade, preco_unitario_centavos: kit.preco_venda_centavos };
+  });
+
+  const itens = juntarItens(dados.itens).map((item) => {
     const insumo = buscarInsumoPorId(item.insumo_id);
     if (!insumo) throw new ItemInvalidoError(`Insumo ${item.insumo_id} não encontrado`);
     return { ...item, custo_unitario_centavos: insumo.custo_unitario_centavos ?? 0 };
   });
+
+  const totalKits = kits.reduce((s, k) => s + k.quantidade * k.preco_unitario_centavos, 0);
+  return { kits, itens, desconto_centavos: valorDesconto(totalKits, dados.desconto_percentual) };
 }
 
 /**
@@ -203,7 +237,7 @@ export function salvarVenda(id: number | null, dados: DadosVenda): VendaComItens
   if (id !== null && !antiga) return null;
   if (antiga?.status === "concluida") throw new StatusInvalidoError("Venda concluída não pode ser alterada");
 
-  const itens = validar(dados);
+  const { kits, itens, desconto_centavos } = validar(dados);
   const delta = diferenca(
     saidaDoEstoque(dados.status, itens),
     antiga ? saidaDoEstoque(antiga.status, antiga.itens) : new Map(),
@@ -212,14 +246,17 @@ export function salvarVenda(id: number | null, dados: DadosVenda): VendaComItens
   const vendaId = transacao(() => {
     const db = getDb();
     const agora = new Date().toISOString();
+    // kit_id (coluna antiga) fica com o primeiro kit, só por compatibilidade; os kits estão em venda_kits
     const valores = [
       dados.status,
       dados.data_venda,
       dados.data_prevista,
-      dados.kit_id,
+      kits[0]?.kit_id ?? null,
       dados.cliente,
       dados.preco_venda_centavos,
       dados.custo_energia_centavos,
+      dados.desconto_percentual,
+      desconto_centavos,
       dados.observacao,
     ] as const;
 
@@ -228,20 +265,27 @@ export function salvarVenda(id: number | null, dados: DadosVenda): VendaComItens
       vId = antiga.id;
       db.prepare(
         `UPDATE vendas SET status = ?, data_venda = ?, data_prevista = ?, kit_id = ?, cliente = ?,
-                preco_venda_centavos = ?, custo_energia_centavos = ?, observacao = ?
+                preco_venda_centavos = ?, custo_energia_centavos = ?, desconto_percentual = ?,
+                desconto_centavos = ?, observacao = ?
           WHERE id = ?`,
       ).run(...valores, vId);
       db.prepare("DELETE FROM venda_itens WHERE venda_id = ?").run(vId);
+      db.prepare("DELETE FROM venda_kits WHERE venda_id = ?").run(vId);
     } else {
       const r = db
         .prepare(
           `INSERT INTO vendas (status, data_venda, data_prevista, kit_id, cliente, preco_venda_centavos,
-                              custo_energia_centavos, observacao, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                              custo_energia_centavos, desconto_percentual, desconto_centavos, observacao, criado_em)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(...valores, agora);
       vId = Number(r.lastInsertRowid);
     }
+
+    const inserirKit = db.prepare(
+      "INSERT INTO venda_kits (venda_id, kit_id, quantidade, preco_unitario_centavos) VALUES (?, ?, ?, ?)",
+    );
+    for (const k of kits) inserirKit.run(vId, k.kit_id, k.quantidade, k.preco_unitario_centavos);
 
     const inserirItem = db.prepare(
       "INSERT INTO venda_itens (venda_id, insumo_id, quantidade, custo_unitario_centavos) VALUES (?, ?, ?, ?)",
@@ -275,7 +319,8 @@ export function concluirVenda(id: number, dataConclusao: string): VendaComItens 
     status: "concluida",
     data_venda: dataConclusao,
     data_prevista: venda.data_prevista,
-    kit_id: venda.kit_id,
+    kits: venda.kits.map(({ kit_id, quantidade }) => ({ kit_id, quantidade })),
+    desconto_percentual: venda.desconto_percentual,
     cliente: venda.cliente,
     preco_venda_centavos: venda.preco_venda_centavos,
     custo_energia_centavos: venda.custo_energia_centavos,
@@ -303,6 +348,7 @@ export function apagarVenda(id: number): boolean {
     );
     for (const [insumoId, qtd] of saidaDoEstoque(venda.status, venda.itens)) devolver.run(qtd, agora, insumoId);
     db.prepare("DELETE FROM venda_itens WHERE venda_id = ?").run(id);
+    db.prepare("DELETE FROM venda_kits WHERE venda_id = ?").run(id);
     db.prepare("DELETE FROM vendas WHERE id = ?").run(id);
   });
   return true;

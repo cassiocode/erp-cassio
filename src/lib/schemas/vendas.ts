@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CUSTO_ENERGIA_CENTAVOS } from "../custos";
 import { hojeISO } from "../datas";
+import { lerPercentual } from "../descontos";
 import { paraCentavos } from "../dinheiro";
 
 const inteiroPositivo = (mensagem: string) => z.coerce.number({ error: mensagem }).int(mensagem).min(1, mensagem);
@@ -45,7 +46,25 @@ export const vendaSchema = z
       .optional()
       .transform((v) => v || hojeISO())
       .refine(dataValida, "Data inválida"),
-    kit_id: z.coerce.number().int().min(1).nullish().transform((v) => v ?? null),
+    kits: z
+      .array(
+        z.object({
+          kit_id: inteiroPositivo("Kit inválido"),
+          quantidade: inteiroPositivo("A quantidade de canecas deve ser um número inteiro de pelo menos 1"),
+        }),
+      )
+      .default([]),
+    desconto_percentual: z
+      .union([z.string(), z.number()])
+      .nullish()
+      .transform((v, ctx) => {
+        const n = lerPercentual(String(v ?? ""));
+        if (n === null) {
+          ctx.addIssue({ code: "custom", message: "Desconto inválido. Use um número de 0 a 100, como 5 ou 20" });
+          return z.NEVER;
+        }
+        return n;
+      }),
     cliente: textoOpcional("O cliente", 120),
     preco_venda: z
       .union([z.string(), z.number()], { error: "O preço de venda é obrigatório" })

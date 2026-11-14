@@ -7,7 +7,7 @@ let caneca: number;
 
 beforeEach(() => {
   getDb().exec(
-    "DELETE FROM baixas; DELETE FROM venda_itens; DELETE FROM vendas; DELETE FROM kit_itens; DELETE FROM compras_insumo; DELETE FROM insumos;",
+    "DELETE FROM baixas; DELETE FROM venda_itens; DELETE FROM venda_kits; DELETE FROM vendas; DELETE FROM kit_itens; DELETE FROM compras_insumo; DELETE FROM insumos;",
   );
   caneca = criarInsumo({
     nome: "Caneca branca 325ml",

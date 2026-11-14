@@ -273,6 +273,28 @@ const migrations: Migration[] = [
       CREATE INDEX idx_vendas_status_prevista ON vendas (status, data_prevista);
     `,
   },
+  {
+    versao: 11,
+    nome: "kits_com_quantidade_e_desconto",
+    sql: `
+      -- Uma venda pode ter vários kits (ex.: 2 canecas brancas + 2 pretas), cada um com quantidade
+      CREATE TABLE venda_kits (
+        venda_id INTEGER NOT NULL REFERENCES vendas (id),
+        kit_id INTEGER NOT NULL REFERENCES kits (id),
+        quantidade INTEGER NOT NULL CHECK (quantidade >= 1),
+        preco_unitario_centavos INTEGER NOT NULL CHECK (preco_unitario_centavos >= 0), -- preço do kit no dia
+        PRIMARY KEY (venda_id, kit_id)
+      );
+      -- Vendas antigas: 1 unidade do kit que já tinham
+      INSERT INTO venda_kits (venda_id, kit_id, quantidade, preco_unitario_centavos)
+        SELECT v.id, v.kit_id, 1, k.preco_venda_centavos FROM vendas v JOIN kits k ON k.id = v.kit_id;
+
+      -- Desconto sobre o preço dos kits (progressivo ou digitado). Vendas antigas: sem desconto.
+      ALTER TABLE vendas ADD COLUMN desconto_percentual REAL NOT NULL DEFAULT 0
+        CHECK (desconto_percentual >= 0 AND desconto_percentual <= 100);
+      ALTER TABLE vendas ADD COLUMN desconto_centavos INTEGER NOT NULL DEFAULT 0 CHECK (desconto_centavos >= 0);
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

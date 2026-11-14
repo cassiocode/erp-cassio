@@ -65,7 +65,7 @@ describe("migrations", () => {
     rodarMigrations(db);
     rodarMigrations(db);
     const versoes = db.prepare("SELECT versao FROM schema_migrations ORDER BY versao").all().map((v) => v.versao);
-    expect(versoes).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(versoes).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   });
 
   it("migration 5 liga os kits padrão aos insumos ativos pelo nome", () => {
@@ -97,6 +97,25 @@ describe("migrations", () => {
       { kit: "Caneca preta", preco: 3490, insumo: "Caixa Para Caneca De Porcelana 325 ML" },
       { kit: "Caneca preta", preco: 3490, insumo: "Caneca Preta 325 - Top" },
     ]);
+  });
+
+  it("migration 11 transforma o kit das vendas antigas em 1 caneca, sem desconto", () => {
+    const db = new DatabaseSync(":memory:");
+    rodarMigrations(db, 10);
+    const kit = db.prepare("SELECT id FROM kits WHERE nome = 'Caneca preta'").get()?.id;
+    db.prepare(
+      "INSERT INTO vendas (data_venda, kit_id, preco_venda_centavos, criado_em) VALUES ('2026-11-01', ?, 3490, 'x')",
+    ).run(kit as number);
+    rodarMigrations(db);
+    expect({ ...db.prepare("SELECT kit_id, quantidade, preco_unitario_centavos FROM venda_kits").get() }).toEqual({
+      kit_id: kit,
+      quantidade: 1,
+      preco_unitario_centavos: 3490,
+    });
+    expect({ ...db.prepare("SELECT desconto_percentual, desconto_centavos FROM vendas").get() }).toEqual({
+      desconto_percentual: 0,
+      desconto_centavos: 0,
+    });
   });
 
   it("migration 6 põe 1 folha de papel de sublimação em cada kit", () => {

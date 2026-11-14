@@ -5,7 +5,8 @@ import { vendaSchema } from "./vendas";
 
 const valida = {
   data_venda: "2026-11-14",
-  kit_id: "1",
+  kits: [{ kit_id: "1", quantidade: "3" }],
+  desconto_percentual: "5",
   cliente: " Maria ",
   preco_venda: "29,90",
   observacao: "",
@@ -27,7 +28,8 @@ describe("vendaSchema", () => {
       status: "concluida",
       data_prevista: null,
       data_venda: "2026-11-14",
-      kit_id: 1,
+      kits: [{ kit_id: 1, quantidade: 3 }],
+      desconto_percentual: 5,
       cliente: "Maria",
       preco_venda_centavos: 2990,
       custo_energia_centavos: 50, // energia vem marcada por padrão
@@ -37,6 +39,14 @@ describe("vendaSchema", () => {
         { insumo_id: 15, quantidade: 1 },
       ],
     });
+  });
+
+  it("desconto: vazio = 0 (sem desconto), aceita 7,5 e recusa acima de 100; sem kits = venda avulsa", () => {
+    expect(vendaSchema.parse({ ...valida, desconto_percentual: "" }).desconto_percentual).toBe(0);
+    expect(vendaSchema.parse({ ...valida, desconto_percentual: "7,5" }).desconto_percentual).toBe(7.5);
+    expect(errosDe({ ...valida, desconto_percentual: "150" }).desconto_percentual).toMatch(/Desconto inválido/);
+    expect(vendaSchema.parse({ ...valida, kits: undefined }).kits).toEqual([]);
+    expect(errosDe({ ...valida, kits: [{ kit_id: 1, quantidade: 0 }] }).kits).toMatch(/pelo menos 1/);
   });
 
   it("pré-venda exige data prevista de entrega; rascunho não", () => {
@@ -50,10 +60,8 @@ describe("vendaSchema", () => {
     expect(vendaSchema.parse({ ...valida, com_energia: false }).custo_energia_centavos).toBe(0);
   });
 
-  it("sem data usa hoje; sem kit fica null", () => {
-    const dados = vendaSchema.parse({ ...valida, data_venda: "", kit_id: null });
-    expect(dados.data_venda).toBe(hojeISO());
-    expect(dados.kit_id).toBeNull();
+  it("sem data usa hoje", () => {
+    expect(vendaSchema.parse({ ...valida, data_venda: "" }).data_venda).toBe(hojeISO());
   });
 
   it("exige preço válido e pelo menos um insumo", () => {

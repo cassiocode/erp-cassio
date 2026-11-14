@@ -36,7 +36,8 @@ function venda(extra: Partial<DadosVenda> = {}): DadosVenda {
     status: "concluida",
     data_venda: "2026-11-14",
     data_prevista: null,
-    kit_id: kitBranca,
+    kits: [{ kit_id: kitBranca, quantidade: 1 }],
+    desconto_percentual: 0,
     cliente: "Maria",
     preco_venda_centavos: 2990,
     custo_energia_centavos: 0, // sem energia, para as contas abaixo ficarem só nos insumos
@@ -51,7 +52,7 @@ function venda(extra: Partial<DadosVenda> = {}): DadosVenda {
 
 beforeEach(() => {
   const db = getDb();
-  db.exec("DELETE FROM venda_itens; DELETE FROM vendas; DELETE FROM kit_itens; DELETE FROM compras_insumo; DELETE FROM insumos;");
+  db.exec("DELETE FROM venda_itens; DELETE FROM venda_kits; DELETE FROM vendas; DELETE FROM kit_itens; DELETE FROM compras_insumo; DELETE FROM insumos;");
   branca = insumo("Caneca branca 325ml", 12600, 12); // R$ 10,50
   preta = insumo("Caneca preta 325ml", 20400, 12); // R$ 17,00
   caixa = insumo("Caixa para caneca de porcelana 325ml", 10000, 50); // R$ 2,00
@@ -78,7 +79,8 @@ describe("kits", () => {
 describe("vendas", () => {
   it("registra com custo dos insumos e lucro", () => {
     const v = registrarVenda(venda());
-    expect(v.kit_nome).toBe("Caneca branca");
+    expect(v.kits_resumo).toBe("1× Caneca branca");
+    expect(v.quantidade_canecas).toBe(1);
     expect(v.custo_total_centavos).toBe(1250); // 10,50 + 2,00
     expect(v.lucro_centavos).toBe(1740); // 29,90 - 12,50
     expect(v.itens.map((i) => [i.nome, i.quantidade, i.custo_unitario_centavos])).toEqual([
@@ -108,7 +110,7 @@ describe("vendas", () => {
   });
 
   it("preço editado abaixo do custo mostra prejuízo", () => {
-    expect(registrarVenda(venda({ kit_id: kitPreta, preco_venda_centavos: 1000, itens: [{ insumo_id: preta, quantidade: 1 }] })).lucro_centavos).toBe(-700);
+    expect(registrarVenda(venda({ kits: [{ kit_id: kitPreta, quantidade: 1 }], preco_venda_centavos: 1000, itens: [{ insumo_id: preta, quantidade: 1 }] })).lucro_centavos).toBe(-700);
   });
 
   it("guarda o custo do dia: compra nova depois não muda o lucro da venda", () => {
@@ -123,12 +125,12 @@ describe("vendas", () => {
   });
 
   it("venda sem kit (só insumos avulsos)", () => {
-    expect(registrarVenda(venda({ kit_id: null })).kit_nome).toBeNull();
+    expect(registrarVenda(venda({ kits: [] })).kits_resumo).toBeNull();
   });
 
   it("recusa insumo ou kit inexistente sem gravar nada", () => {
     expect(() => registrarVenda(venda({ itens: [{ insumo_id: 9999, quantidade: 1 }] }))).toThrow(ItemInvalidoError);
-    expect(() => registrarVenda(venda({ kit_id: 9999 }))).toThrow(ItemInvalidoError);
+    expect(() => registrarVenda(venda({ kits: [{ kit_id: 9999, quantidade: 1 }] }))).toThrow(ItemInvalidoError);
     expect(listarVendas()).toHaveLength(0);
     expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(12);
   });
@@ -145,6 +147,40 @@ describe("vendas", () => {
     expect(() => salvarVenda(id, venda({ preco_venda_centavos: 1 }))).toThrow(StatusInvalidoError);
     expect(buscarInsumoPorId(branca)?.quantidade_estoque).toBe(11);
     expect(apagarVenda(9999)).toBe(false);
+  });
+});
+
+describe("kits com quantidade e desconto", () => {
+  it("2 brancas + 2 pretas com 5%: grava kits, canecas e o desconto sobre os kits", () => {
+    const v = registrarVenda(
+      venda({
+        kits: [
+          { kit_id: kitBranca, quantidade: 2 },
+          { kit_id: kitPreta, quantidade: 2 },
+        ],
+        desconto_percentual: 5,
+        preco_venda_centavos: 12312, // (2×29,90 + 2×34,90 = 129,60) × 0,95
+      }),
+    );
+    expect(v.kits_resumo).toBe("2× Caneca branca, 2× Caneca preta");
+    expect(v.quantidade_canecas).toBe(4);
+    expect(v.desconto_percentual).toBe(5);
+    expect(v.desconto_centavos).toBe(648); // 5% de R$ 129,60 = R$ 6,48
+  });
+
+  it("concluir pré-venda mantém kits e desconto", () => {
+    const { id } = registrarVenda(
+      venda({ status: "pre_venda", data_prevista: "2026-11-20", kits: [{ kit_id: kitPreta, quantidade: 6 }], desconto_percentual: 10 }),
+    );
+    const v = concluirVenda(id, "2026-11-20")!;
+    expect(v.kits).toEqual([{ kit_id: kitPreta, nome: "Caneca preta", quantidade: 6, preco_unitario_centavos: 3490 }]);
+    expect(v.desconto_centavos).toBe(2094); // 10% de 6 × 34,90 = 209,40 → 20,94
+  });
+
+  it("apagar rascunho apaga os kits dele", () => {
+    const { id } = registrarVenda(venda({ status: "rascunho", kits: [{ kit_id: kitBranca, quantidade: 3 }] }));
+    expect(apagarVenda(id)).toBe(true);
+    expect(getDb().prepare("SELECT COUNT(*) AS n FROM venda_kits WHERE venda_id = ?").get(id)?.n).toBe(0);
   });
 });
 
