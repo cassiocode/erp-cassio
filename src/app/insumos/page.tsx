@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatarMargem, precoComMargem } from "@/lib/custos";
 import { listarInsumos } from "@/lib/db/repositories/insumos";
 import { formatarReais } from "@/lib/dinheiro";
 import BotaoAtivar from "../_components/BotaoAtivar";
@@ -62,6 +63,7 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
             <tr>
               <th className="px-3 py-2">Nome</th>
               <th className="px-3 py-2 text-right">Custo médio</th>
+              <th className="px-3 py-2 text-right">Margem</th>
               <th className="px-3 py-2 text-right">Comprados</th>
               <th className="px-3 py-2 text-right">Em estoque</th>
               <th className="px-3 py-2">Status</th>
@@ -71,7 +73,7 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
           <tbody>
             {insumos.length === 0 && (
               <tr>
-                <td colSpan={6}className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
                   Nenhum insumo encontrado.
                 </td>
               </tr>
@@ -84,6 +86,15 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
                 </td>
                 <td className="px-3 py-2 text-right font-medium">
                   {i.custo_unitario_centavos === null ? "—" : formatarReais(i.custo_unitario_centavos)}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {i.margem_lucro_percentual === null ? (
+                    <span className="text-gray-400">—</span>
+                  ) : (
+                    <span title={i.custo_unitario_centavos === null ? undefined : `Preço na venda: ${formatarReais(precoComMargem(i.custo_unitario_centavos, i.margem_lucro_percentual))}`}>
+                      {formatarMargem(i.margem_lucro_percentual)}
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-right">{i.quantidade_comprada}</td>
                 <td

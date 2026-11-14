@@ -14,6 +14,7 @@ export interface InsumoEmEdicao {
   nome: string;
   quantidade_estoque: number;
   observacao: string | null;
+  margem_lucro_percentual: number | null;
   custo_unitario_centavos: number | null;
   quantidade_comprada: number;
 }
@@ -38,6 +39,9 @@ export default function FormInsumo({
   const [observacao, setObservacao] = useState(insumo?.observacao ?? "");
   const [estoque, setEstoque] = useState(String(insumo?.quantidade_estoque ?? 0));
   const [compra, setCompra] = useState<ValoresCompra>({ data_compra: hojeISO(), valor_pago: "", quantidade: "1" });
+  const [margem, setMargem] = useState(
+    insumo?.margem_lucro_percentual == null ? "" : String(insumo.margem_lucro_percentual).replace(".", ","),
+  );
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
 
@@ -47,10 +51,11 @@ export default function FormInsumo({
     setErros({});
 
     const corpo = insumo
-      ? { nome, quantidade_estoque: estoque, observacao }
+      ? { nome, quantidade_estoque: estoque, observacao, margem_lucro: margem }
       : {
           nome,
           observacao,
+          margem_lucro: margem,
           data_compra: compra.data_compra,
           valor_pago: compra.valor_pago,
           quantidade_comprada: compra.quantidade,
@@ -137,6 +142,21 @@ export default function FormInsumo({
           <p className="mt-2 text-xs text-gray-500">O estoque começa com a quantidade comprada.</p>
         </fieldset>
       )}
+
+      <label className="block text-sm sm:w-1/2">
+        <span className="mb-1 block font-medium">Margem de lucro (%)</span>
+        <input
+          value={margem}
+          onChange={(e) => setMargem(e.target.value)}
+          inputMode="decimal"
+          placeholder="Ex.: 50"
+          className={campo}
+        />
+        <span className="mt-1 block text-xs text-gray-500">
+          Opcional. Usada só na venda: ao adicionar este insumo, o preço sobe custo + margem. Vazio = não mexe no preço.
+        </span>
+        {mensagem("margem_lucro")}
+      </label>
 
       <label className="block text-sm">
         <span className="mb-1 block font-medium">Observação</span>

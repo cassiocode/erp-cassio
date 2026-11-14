@@ -26,6 +26,7 @@ describe("novoInsumoSchema", () => {
       quantidade_comprada: 12,
       data_compra: "2026-11-01",
       observacao: "Cerâmica AAA",
+      margem_lucro_percentual: null,
     });
   });
 
@@ -36,7 +37,17 @@ describe("novoInsumoSchema", () => {
       quantidade_comprada: 1,
       data_compra: hojeISO(),
       observacao: null,
+      margem_lucro_percentual: null,
     });
+  });
+
+  it("margem de lucro: aceita 50, 33,5 e 40%; vazio vira null; recusa negativo e texto", () => {
+    expect(novoInsumoSchema.parse({ ...valido, margem_lucro: "50" }).margem_lucro_percentual).toBe(50);
+    expect(novoInsumoSchema.parse({ ...valido, margem_lucro: "33,5" }).margem_lucro_percentual).toBe(33.5);
+    expect(novoInsumoSchema.parse({ ...valido, margem_lucro: "40%" }).margem_lucro_percentual).toBe(40);
+    expect(novoInsumoSchema.parse({ ...valido, margem_lucro: " " }).margem_lucro_percentual).toBeNull();
+    expect(errosDe(novoInsumoSchema, { ...valido, margem_lucro: "-5" }).margem_lucro).toMatch(/Margem inválida/);
+    expect(errosDe(novoInsumoSchema, { ...valido, margem_lucro: "abc" }).margem_lucro).toMatch(/Margem inválida/);
   });
 
   it("exige nome e total pago", () => {
@@ -63,6 +74,11 @@ describe("edicaoInsumoSchema", () => {
     expect(errosDe(edicaoInsumoSchema, { nome: "Caneca", quantidade_estoque: "1.5" }).quantidade_estoque).toMatch(
       /inteiro/,
     );
+  });
+
+  it("margem vazia tira a margem", () => {
+    expect(edicaoInsumoSchema.parse({ nome: "Trufa", quantidade_estoque: 1, margem_lucro: "" }).margem_lucro_percentual).toBeNull();
+    expect(edicaoInsumoSchema.parse({ nome: "Trufa", quantidade_estoque: 1, margem_lucro: 50 }).margem_lucro_percentual).toBe(50);
   });
 });
 

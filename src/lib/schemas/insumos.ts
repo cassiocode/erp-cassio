@@ -39,6 +39,21 @@ const observacao = z
   .nullish()
   .transform((v) => v || null);
 
+/** Margem de lucro em % ("50", "33,5"). Vazio = sem margem (null). */
+const margemLucro = z
+  .union([z.string(), z.number()])
+  .nullish()
+  .transform((v, ctx) => {
+    const texto = String(v ?? "").trim().replace("%", "").replace(",", ".").trim();
+    if (texto === "") return null;
+    const numero = Number(texto);
+    if (!Number.isFinite(numero) || numero < 0 || numero > 1000) {
+      ctx.addIssue({ code: "custom", message: "Margem inválida. Use um número como 50 ou 33,5 (de 0 a 1000)" });
+      return z.NEVER;
+    }
+    return Math.round(numero * 100) / 100;
+  });
+
 /** Cadastro de insumo novo: o total pago e a quantidade viram a primeira compra. */
 export const novoInsumoSchema = z
   .object({
@@ -47,17 +62,25 @@ export const novoInsumoSchema = z
     quantidade_comprada: quantidadeComprada.default(1),
     data_compra: dataCompra,
     observacao,
+    margem_lucro: margemLucro,
   })
-  .transform(({ valor_pago, ...resto }) => ({ ...resto, valor_pago_centavos: valor_pago }));
+  .transform(({ valor_pago, margem_lucro, ...resto }) => ({
+    ...resto,
+    valor_pago_centavos: valor_pago,
+    margem_lucro_percentual: margem_lucro,
+  }));
 
 /** Edição do insumo. Estoque pode ser negativo (ex.: usou antes de lançar a compra). */
-export const edicaoInsumoSchema = z.object({
-  nome,
-  quantidade_estoque: z.coerce
-    .number({ error: "A quantidade em estoque deve ser um número" })
-    .int("A quantidade em estoque deve ser um número inteiro"),
-  observacao,
-});
+export const edicaoInsumoSchema = z
+  .object({
+    nome,
+    quantidade_estoque: z.coerce
+      .number({ error: "A quantidade em estoque deve ser um número" })
+      .int("A quantidade em estoque deve ser um número inteiro"),
+    observacao,
+    margem_lucro: margemLucro,
+  })
+  .transform(({ margem_lucro, ...resto }) => ({ ...resto, margem_lucro_percentual: margem_lucro }));
 
 /** Nova compra de um insumo já cadastrado. */
 export const compraSchema = z
