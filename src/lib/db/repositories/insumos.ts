@@ -1,5 +1,6 @@
 import { custoPorUnidade } from "../../dinheiro";
-import { getDb, normalizarTexto } from "../connection";
+import { normalizarTexto } from "../../texto";
+import { getDb } from "../connection";
 import { ehViolacaoDeUnico, NomeDuplicadoError } from "../erros";
 
 export interface Insumo {
