@@ -15,6 +15,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="border-b border-gray-200 bg-white">
           <nav className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
             <span className="font-semibold">Estoque de Canecas</span>
+            <Link href="/vendas" className={link}>
+              Vendas
+            </Link>
             <Link href="/insumos" className={link}>
               Insumos
             </Link>
