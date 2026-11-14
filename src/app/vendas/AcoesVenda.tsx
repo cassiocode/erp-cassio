@@ -8,8 +8,8 @@ import { buscarFaltas, textoAlertaFaltas, type Falta } from "@/lib/alertas";
 type Status = "rascunho" | "pre_venda" | "concluida";
 
 /**
- * Ações da linha: Editar e Concluir (rascunho/pré-venda), Cancelar (pré-venda, devolve ao estoque)
- * ou Apagar (rascunho). Venda concluída não tem ações: o que foi vendido não volta para o estoque.
+ * Ações da linha: Editar (todas), Concluir (rascunho/pré-venda), Cancelar (venda ou pré-venda: os insumos
+ * voltam para o estoque) ou Apagar (rascunho, que não mexeu no estoque).
  */
 export default function AcoesVenda({
   id,
@@ -26,7 +26,6 @@ export default function AcoesVenda({
 }) {
   const router = useRouter();
   const [ocupado, setOcupado] = useState(false);
-  if (status === "concluida") return <span className="text-xs text-gray-400">—</span>;
 
   async function executar(acao: () => Promise<Response>, erro: string) {
     setOcupado(true);
@@ -61,9 +60,9 @@ export default function AcoesVenda({
 
   async function apagar() {
     const texto =
-      status === "pre_venda"
-        ? `Cancelar a ${descricao}?\nOs insumos voltam para o estoque e não dá para desfazer.`
-        : `Apagar o ${descricao}?`;
+      status === "rascunho"
+        ? `Apagar o ${descricao}?`
+        : `Cancelar a ${descricao}?\nOs insumos dela voltam para o estoque e não dá para desfazer.`;
     if (!confirm(texto)) return;
     await executar(() => fetch(`/api/vendas/${id}`, { method: "DELETE" }), "Não foi possível apagar.");
   }
@@ -73,11 +72,13 @@ export default function AcoesVenda({
       <Link href={`/vendas/${id}/editar`} className="text-blue-700 hover:underline">
         Editar
       </Link>
-      <button type="button" onClick={concluir} disabled={ocupado} className="text-green-700 hover:underline disabled:opacity-50">
-        Concluir
-      </button>
+      {status !== "concluida" && (
+        <button type="button" onClick={concluir} disabled={ocupado} className="text-green-700 hover:underline disabled:opacity-50">
+          Concluir
+        </button>
+      )}
       <button type="button" onClick={apagar} disabled={ocupado} className="text-red-700 hover:underline disabled:opacity-50">
-        {status === "pre_venda" ? "Cancelar" : "Apagar"}
+        {status === "rascunho" ? "Apagar" : "Cancelar"}
       </button>
     </div>
   );

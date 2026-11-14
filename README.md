@@ -18,9 +18,10 @@ npm run dev
 Abra http://localhost:3000 (vai para `/insumos`).
 
 ## Telas
-- **Vendas** (`/vendas`): cada lançamento é **Venda** (entregue, tira do estoque e não volta), **Pré-venda**
-  (entrega futura com data prevista; já tira do estoque, cancelar devolve) ou **Rascunho** (não mexe no
-  estoque). A lista mostra as pré-vendas no topo, pela entrega mais próxima. **Concluir** uma pré-venda não
+- **Vendas** (`/vendas`): cada lançamento é **Venda** (entregue, tira do estoque), **Pré-venda**
+  (entrega futura com data prevista; já tira do estoque) ou **Rascunho** (não mexe no estoque). Todos podem
+  ser **editados** (até trocar o tipo; o estoque acompanha a diferença). **Cancelar** uma venda ou
+  pré-venda devolve ao estoque os insumos que ela tirou. A lista mostra as pré-vendas no topo, pela entrega mais próxima. **Concluir** uma pré-venda não
   baixa de novo. Se uma venda, pré-venda ou baixa deixar o estoque negativo, aparece o aviso de para qual
   pré-venda vai faltar material (a entrega mais próxima tem prioridade) e a pré-venda fica marcada com
   "Falta". Lista com faturamento, custo e lucro (só vendas concluídas).

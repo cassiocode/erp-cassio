@@ -54,7 +54,7 @@ type QtdKits = Record<number, number>; // kit_id -> canecas (0 = fora da venda)
 const textoPercentual = (n: number) => String(n).replace(".", ",");
 
 const OPCOES_STATUS: { valor: StatusVenda; rotulo: string; dica: string }[] = [
-  { valor: "concluida", rotulo: "Venda", dica: "Entregue agora. Tira do estoque e não volta." },
+  { valor: "concluida", rotulo: "Venda", dica: "Entregue agora. Tira do estoque; cancelar devolve." },
   { valor: "pre_venda", rotulo: "Pré-venda", dica: "Entrega futura. Já tira do estoque; cancelar devolve." },
   { valor: "rascunho", rotulo: "Rascunho", dica: "Só anotação. Não mexe no estoque." },
 ];

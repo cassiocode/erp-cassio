@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { lerId } from "@/lib/api";
 import { buscarVenda, calcularFaltas } from "@/lib/db/repositories/vendas";
@@ -11,18 +10,6 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
   const id = lerId((await params).id);
   const venda = id === null ? null : buscarVenda(id);
   if (!venda) notFound();
-
-  if (venda.status === "concluida") {
-    return (
-      <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">Venda #{venda.id}</h1>
-        <p className="text-sm text-gray-600">Venda concluída não pode ser alterada.</p>
-        <Link href="/vendas" className="text-sm text-blue-700 hover:underline">
-          Voltar para vendas
-        </Link>
-      </div>
-    );
-  }
 
   const { kits, insumos } = dadosDoFormulario();
   // Insumo inativo que já está na venda continua aparecendo
@@ -47,7 +34,7 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
   return (
     <div>
       <h1 className="mb-4 flex items-center gap-3 text-2xl font-semibold">
-        Editar {venda.status === "pre_venda" ? "pré-venda" : "rascunho"} #{venda.id}
+        Editar {venda.status === "pre_venda" ? "pré-venda" : venda.status === "rascunho" ? "rascunho" : "venda"} #{venda.id}
         {Object.keys(faltas).length > 0 && (
           <span className="rounded bg-red-100 px-2 py-0.5 text-sm font-medium text-red-700">Sem material</span>
         )}
