@@ -18,9 +18,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/insumos" className={link}>
               Insumos
             </Link>
-            <Link href="/insumos/grupos" className={link}>
-              Grupos de insumo
-            </Link>
           </nav>
         </header>
         <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>

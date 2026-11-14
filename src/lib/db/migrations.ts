@@ -93,6 +93,41 @@ const migrations: Migration[] = [
       DROP TABLE materiais;
     `,
   },
+  {
+    versao: 3,
+    nome: "simplificar_insumos",
+    // Grupo, unidade, fornecedor e estoque mínimo saem; rendimento vira "quantidade comprada"
+    // (12 canecas por R$ 126,00 = R$ 10,50 cada); especificação vira observação;
+    // estoque pode ficar negativo.
+    // O SQLite não remove CHECK com ALTER TABLE, então a tabela é recriada (ids mantidos).
+    sql: `
+      CREATE TABLE insumos_novo (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        valor_pago_centavos INTEGER NOT NULL CHECK (valor_pago_centavos >= 0),
+        quantidade_comprada INTEGER NOT NULL DEFAULT 1 CHECK (quantidade_comprada >= 1),
+        custo_unitario_centavos INTEGER NOT NULL CHECK (custo_unitario_centavos >= 0),
+        quantidade_estoque INTEGER NOT NULL DEFAULT 0,
+        observacao TEXT,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL
+      );
+
+      INSERT INTO insumos_novo (
+        id, nome, valor_pago_centavos, quantidade_comprada, custo_unitario_centavos,
+        quantidade_estoque, observacao, ativo, criado_em, atualizado_em
+      )
+      SELECT id, nome, valor_pago_centavos, rendimento, custo_unitario_centavos,
+             quantidade_estoque, especificacao, ativo, criado_em, atualizado_em
+        FROM insumos;
+
+      DROP TABLE insumos;
+      DROP TABLE grupos_insumo;
+      ALTER TABLE insumos_novo RENAME TO insumos;
+      CREATE UNIQUE INDEX idx_insumos_nome ON insumos (nome COLLATE NOCASE);
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

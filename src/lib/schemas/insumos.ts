@@ -1,20 +1,6 @@
 import { z } from "zod";
 import { paraCentavos } from "../dinheiro";
 
-const inteiroNaoNegativo = (rotulo: string) =>
-  z.coerce
-    .number({ error: `${rotulo} deve ser um número` })
-    .int(`${rotulo} deve ser um número inteiro`)
-    .min(0, `${rotulo} não pode ser negativa`);
-
-const textoOpcional = (rotulo: string, max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max, `${rotulo} pode ter no máximo ${max} caracteres`)
-    .nullish()
-    .transform((v) => v || null);
-
 /**
  * Entrada da API/formulário de insumo.
  * O valor pago chega como texto ("45,00") e sai em centavos.
@@ -26,15 +12,6 @@ export const insumoSchema = z
       .trim()
       .min(1, "O nome é obrigatório")
       .max(120, "O nome pode ter no máximo 120 caracteres"),
-    grupo_id: z.coerce
-      .number({ error: "Escolha um grupo" })
-      .int("Escolha um grupo")
-      .min(1, "Escolha um grupo"),
-    unidade: z
-      .string({ error: "A unidade é obrigatória" })
-      .trim()
-      .min(1, "A unidade é obrigatória")
-      .max(20, "A unidade pode ter no máximo 20 caracteres"),
     valor_pago: z
       .union([z.string(), z.number()], { error: "O valor pago é obrigatório" })
       .transform((v, ctx) => {
@@ -48,15 +25,22 @@ export const insumoSchema = z
         }
         return centavos;
       }),
-    rendimento: z.coerce
-      .number({ error: "O rendimento deve ser um número" })
-      .int("O rendimento deve ser um número inteiro")
-      .min(1, "O rendimento deve ser pelo menos 1")
+    quantidade_comprada: z.coerce
+      .number({ error: "A quantidade comprada deve ser um número" })
+      .int("A quantidade comprada deve ser um número inteiro")
+      .min(1, "A quantidade comprada deve ser pelo menos 1")
       .default(1),
-    quantidade_estoque: inteiroNaoNegativo("A quantidade em estoque").default(0),
-    estoque_minimo: inteiroNaoNegativo("O estoque mínimo").default(0),
-    fornecedor: textoOpcional("O fornecedor", 120),
-    especificacao: textoOpcional("A especificação", 500),
+    // Pode ser negativa (ex.: vendeu antes de lançar a compra)
+    quantidade_estoque: z.coerce
+      .number({ error: "A quantidade em estoque deve ser um número" })
+      .int("A quantidade em estoque deve ser um número inteiro")
+      .default(0),
+    observacao: z
+      .string()
+      .trim()
+      .max(500, "A observação pode ter no máximo 500 caracteres")
+      .nullish()
+      .transform((v) => v || null),
   })
   .transform(({ valor_pago, ...resto }) => ({
     ...resto,

@@ -1,16 +1,8 @@
-/** Nome já usado por outro registro (comparação sem diferenciar maiúsculas). */
+/** Nome já usado por outro registro (comparação sem diferenciar maiúsculas nem acentos). */
 export class NomeDuplicadoError extends Error {
   constructor(mensagem: string) {
     super(mensagem);
     this.name = "NomeDuplicadoError";
-  }
-}
-
-/** O grupo informado para o insumo não existe. */
-export class GrupoInvalidoError extends Error {
-  constructor() {
-    super("Grupo não encontrado");
-    this.name = "GrupoInvalidoError";
   }
 }
 

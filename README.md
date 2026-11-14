@@ -19,9 +19,9 @@ Abra http://localhost:3000 (vai para `/insumos`).
 
 ## Telas
 - **Insumos** (`/insumos`): itens que compõem o custo dos produtos (canecas branca e preta, caixas,
-  embalagens, papel, tinta, brindes). Cada insumo tem **valor pago** e **rendimento**; o sistema calcula
-  o **custo por unidade** (ex.: pacote de papel R$ 45,00 que rende 100 folhas = R$ 0,45 por folha).
-- **Grupos de insumo** (`/insumos/grupos`): grupos cadastrados conforme a necessidade (Caneca, Embalagem...).
+  embalagens, papel, tinta, brindes). Cada insumo tem **total pago** e **quantidade comprada**; o sistema
+  calcula o **custo por unidade** (ex.: 12 canecas por R$ 126,00 = R$ 10,50 cada).
+  A quantidade em estoque pode ficar negativa.
 
 O custo total de cada produto (soma dos insumos usados) fica na futura tela de produtos.
 
@@ -35,7 +35,7 @@ O custo total de cada produto (soma dos insumos usados) fica na futura tela de p
 ```bash
 npm run db:seed
 ```
-Insere grupos e insumos de exemplo (caneca branca, caneca preta, caixa, plástico bolha, papel, tinta,
+Insere insumos de exemplo (caneca branca, caneca preta, caixa, plástico bolha, papel, tinta,
 fita térmica, bombom). Não duplica se já existirem.
 
 ## Testes
@@ -45,4 +45,4 @@ npm test
 Os testes usam banco em memória e não mexem em `data/estoque.db`.
 
 ## Observação
-Insumos e grupos não são apagados: use **Inativar/Reativar**, para preservar o histórico de produtos e vendas.
+Insumos não são apagados: use **Inativar/Reativar**, para preservar o histórico de produtos e vendas.

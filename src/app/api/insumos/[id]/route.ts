@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { lerCorpo, lerId, respostaErros, respostaIdInvalido, respostaNaoEncontrado } from "@/lib/api";
-import { GrupoInvalidoError, NomeDuplicadoError } from "@/lib/db/erros";
+import { NomeDuplicadoError } from "@/lib/db/erros";
 import { atualizarInsumo, buscarInsumoPorId, definirInsumoAtivo } from "@/lib/db/repositories/insumos";
 import { ativoSchema, errosPorCampo } from "@/lib/schemas/comum";
 import { insumoSchema } from "@/lib/schemas/insumos";
@@ -30,7 +30,6 @@ export async function PUT(request: Request, { params }: Contexto) {
     return insumo ? NextResponse.json(insumo) : respostaNaoEncontrado("Insumo");
   } catch (erro) {
     if (erro instanceof NomeDuplicadoError) return respostaErros({ nome: erro.message }, 409);
-    if (erro instanceof GrupoInvalidoError) return respostaErros({ grupo_id: erro.message }, 400);
     throw erro;
   }
 }
