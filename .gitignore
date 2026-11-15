@@ -3,7 +3,3 @@ node_modules/
 next-env.d.ts
 *.tsbuildinfo
 
-# Banco de dados: só o data/estoque.db vai para o repositório (privado).
-# Ficam de fora os arquivos temporários do SQLite (-wal, -shm) e as cópias de backup.
-data/*
-!data/estoque.db
