@@ -65,7 +65,7 @@ describe("migrations", () => {
     rodarMigrations(db);
     rodarMigrations(db);
     const versoes = db.prepare("SELECT versao FROM schema_migrations ORDER BY versao").all().map((v) => v.versao);
-    expect(versoes).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(versoes).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
   });
 
   it("migration 5 liga os kits padrão aos insumos ativos pelo nome", () => {
@@ -128,7 +128,7 @@ describe("migrations", () => {
     inserir.run("Tinta Genesis Sublimática");
     inserir.run("Papel Sublimação Fundo Rosa - Jojo");
 
-    rodarMigrations(db);
+    rodarMigrations(db, 13); // a 14 troca o insumo do kit pela categoria
 
     const itens = db
       .prepare(
@@ -144,7 +144,7 @@ describe("migrations", () => {
     ]);
   });
 
-  it("migration 13 categoriza os insumos pelo nome", () => {
+  it("migrations 13 e 14 categorizam os insumos pelo nome e ligam os kits às categorias", () => {
     const db = new DatabaseSync(":memory:");
     rodarMigrations(db, 12);
     const inserir = db.prepare(
@@ -164,6 +164,12 @@ describe("migrations", () => {
       "Tablete Branco 9g - Cacau Show",
       "Fita térmica",
     ].forEach((n) => inserir.run(n));
+    const id = (nome: string) => Number(db.prepare("SELECT id FROM insumos WHERE nome = ?").get(nome)?.id);
+    const kit = (nome: string) => Number(db.prepare("SELECT id FROM kits WHERE nome = ?").get(nome)?.id);
+    const ligar = db.prepare("INSERT INTO kit_itens (kit_id, insumo_id) VALUES (?, ?)");
+    ligar.run(kit("Caneca preta"), id("Caneca Preta 325 - Top"));
+    ligar.run(kit("Caneca preta"), id("Caixa Para Caneca De Porcelana 325 ML"));
+
     rodarMigrations(db);
 
     const categorias = db
@@ -183,6 +189,20 @@ describe("migrations", () => {
       ["Trufa Branco 30g - Cacau Show", "Trufa"],
       ["Tablete Branco 9g - Cacau Show", "Tablete de chocolate"],
       ["Fita térmica", "Outros"],
+    ]);
+
+    const kits = db
+      .prepare(
+        `SELECT k.nome AS kit, c.nome AS categoria FROM kit_itens ki
+           JOIN kits k ON k.id = ki.kit_id JOIN categorias c ON c.id = ki.categoria_id ORDER BY k.ordem, c.nome`,
+      )
+      .all()
+      .map((l) => [l.kit, l.categoria]);
+    // O kit branco estava sem itens: liga na base pelo nome do kit
+    expect(kits).toEqual([
+      ["Caneca branca", "Caneca cor branca"],
+      ["Caneca preta", "Caixa para caneca"],
+      ["Caneca preta", "Caneca Cor Preta c/ Tarja Branca"],
     ]);
   });
 });

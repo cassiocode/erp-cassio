@@ -1,10 +1,12 @@
+import { chaveMaterial } from "../../alertas";
 import { valorDesconto } from "../../descontos";
 import { getDb, transacao } from "../connection";
 import { buscarInsumoPorId } from "./insumos";
 
+/** O kit pede categorias (1 caneca preta qualquer, 1 caixa...); a venda escolhe o insumo de cada uma. */
 export interface ItemKit {
-  insumo_id: number;
-  nome: string;
+  categoria_id: number;
+  nome: string; // nome da categoria
   quantidade: number;
 }
 
@@ -30,6 +32,8 @@ export interface ItemVenda {
   id: number;
   insumo_id: number;
   nome: string;
+  categoria_id: number | null;
+  categoria_nome: string | null;
   quantidade: number;
   custo_unitario_centavos: number; // custo médio do insumo quando a venda foi salva
 }
@@ -79,13 +83,16 @@ export interface DadosVenda {
   itens: { insumo_id: number; quantidade: number }[];
 }
 
-/** Falta de material para uma pré-venda: o estoque do insumo ficou negativo. */
+/**
+ * Falta de material para uma pré-venda: o estoque somado da categoria ficou negativo (ex.: as canecas
+ * pretas Top + Trix). Insumo sem categoria conta sozinho.
+ */
 export interface FaltaMaterial {
   venda_id: number | null; // null = a venda que está sendo lançada agora (ainda não gravada)
   cliente: string | null;
   data_prevista: string | null;
-  insumo_id: number;
-  insumo_nome: string;
+  material: number; // chaveMaterial: id da categoria (ou -id do insumo sem categoria)
+  material_nome: string; // nome da categoria (ou do insumo)
   falta: number;
 }
 
@@ -109,9 +116,9 @@ export class StatusInvalidoError extends Error {
 export function listarKits(): Kit[] {
   const db = getDb();
   const itens = db.prepare(
-    `SELECT ki.insumo_id, i.nome, ki.quantidade
-       FROM kit_itens ki JOIN insumos i ON i.id = ki.insumo_id
-      WHERE ki.kit_id = ? ORDER BY i.nome COLLATE NOCASE`,
+    `SELECT ki.categoria_id, c.nome, ki.quantidade
+       FROM kit_itens ki JOIN categorias c ON c.id = ki.categoria_id
+      WHERE ki.kit_id = ? ORDER BY c.nome COLLATE NOCASE`,
   );
   return db
     .prepare("SELECT id, nome, preco_venda_centavos FROM kits WHERE ativo = 1 ORDER BY ordem, nome")
@@ -158,8 +165,8 @@ export function listarVendas(filtro: { status?: StatusVenda } = {}): Venda[] {
 function itensDaVenda(id: number): ItemVenda[] {
   return getDb()
     .prepare(
-      `SELECT vi.id, vi.insumo_id, i.nome, vi.quantidade, vi.custo_unitario_centavos
-         FROM venda_itens vi JOIN insumos i ON i.id = vi.insumo_id
+      `SELECT vi.id, vi.insumo_id, i.nome, i.categoria_id, c.nome AS categoria_nome, vi.quantidade, vi.custo_unitario_centavos
+         FROM venda_itens vi JOIN insumos i ON i.id = vi.insumo_id LEFT JOIN categorias c ON c.id = i.categoria_id
         WHERE vi.venda_id = ? ORDER BY vi.id`,
     )
     .all(id)
@@ -355,10 +362,37 @@ export function apagarVenda(id: number): boolean {
   return true;
 }
 
+/** Insumo -> material (categoria) e o estoque somado de cada material. */
+function materiais() {
+  const linhas = getDb()
+    .prepare(
+      `SELECT i.id, i.nome, i.quantidade_estoque, i.categoria_id, c.nome AS categoria_nome
+         FROM insumos i LEFT JOIN categorias c ON c.id = i.categoria_id`,
+    )
+    .all() as unknown as {
+    id: number;
+    nome: string;
+    quantidade_estoque: number;
+    categoria_id: number | null;
+    categoria_nome: string | null;
+  }[];
+  const doInsumo = new Map<number, number>();
+  const grupos = new Map<number, { nome: string; estoque: number }>();
+  for (const i of linhas) {
+    const chave = chaveMaterial({ id: i.id, categoria_id: i.categoria_id });
+    doInsumo.set(i.id, chave);
+    const g = grupos.get(chave) ?? { nome: i.categoria_nome ?? i.nome, estoque: 0 };
+    g.estoque += i.quantidade_estoque;
+    grupos.set(chave, g);
+  }
+  return { doInsumo, grupos };
+}
+
 /**
- * Faltas de material das pré-vendas em aberto. O estoque já descontou as pré-vendas, então estoque
- * negativo = alguma pré-venda sem material. A falta fica com quem entrega por último (a entrega mais
- * próxima tem prioridade no material que existe).
+ * Faltas de material das pré-vendas em aberto, por categoria: o estoque já descontou as pré-vendas, então
+ * estoque somado negativo = alguma pré-venda sem material (se a caneca preta Top acabou mas a Trix tem,
+ * não falta caneca preta). A falta fica com quem entrega por último (a entrega mais próxima tem
+ * prioridade no material que existe).
  *
  * `saidaExtra` simula uma saída que ainda vai acontecer (baixa, venda...): insumo -> quantidade.
  * `donoDaSaida`: se a saída é de uma venda (nova ou sendo editada), ela entra na fila com a data dela.
@@ -367,28 +401,47 @@ export function calcularFaltas(
   saidaExtra: Map<number, number> = new Map(),
   donoDaSaida: { venda_id: number | null; data_prevista: string | null; cliente: string | null } | null = null,
 ): FaltaMaterial[] {
-  const db = getDb();
-  const insumos = db.prepare("SELECT id, nome, quantidade_estoque FROM insumos").all() as unknown as {
-    id: number;
-    nome: string;
-    quantidade_estoque: number;
-  }[];
-  const usos = db.prepare(
-    `SELECT v.id AS venda_id, v.cliente, v.data_prevista, SUM(vi.quantidade) AS quantidade
-       FROM venda_itens vi JOIN vendas v ON v.id = vi.venda_id
-      WHERE v.status = 'pre_venda' AND vi.insumo_id = ?
-      GROUP BY v.id`,
-  );
+  const { doInsumo, grupos } = materiais();
+  const extraPorMaterial = new Map<number, number>();
+  for (const [insumoId, qtd] of saidaExtra) {
+    const chave = doInsumo.get(insumoId);
+    if (chave !== undefined) extraPorMaterial.set(chave, (extraPorMaterial.get(chave) ?? 0) + qtd);
+  }
+
+  // Quanto cada pré-venda usa de cada material
+  type Uso = { venda_id: number | null; cliente: string | null; data_prevista: string | null; quantidade: number };
+  const usosPorMaterial = new Map<number, Map<number, Uso>>();
+  const linhas = getDb()
+    .prepare(
+      `SELECT v.id AS venda_id, v.cliente, v.data_prevista, vi.insumo_id, SUM(vi.quantidade) AS quantidade
+         FROM venda_itens vi JOIN vendas v ON v.id = vi.venda_id
+        WHERE v.status = 'pre_venda'
+        GROUP BY v.id, vi.insumo_id`,
+    )
+    .all() as unknown as (Uso & { venda_id: number; insumo_id: number })[];
+  for (const l of linhas) {
+    const chave = doInsumo.get(l.insumo_id);
+    if (chave === undefined) continue;
+    const porVenda = usosPorMaterial.get(chave) ?? new Map<number, Uso>();
+    const uso = porVenda.get(l.venda_id) ?? {
+      venda_id: l.venda_id,
+      cliente: l.cliente,
+      data_prevista: l.data_prevista,
+      quantidade: 0,
+    };
+    uso.quantidade += l.quantidade;
+    porVenda.set(l.venda_id, uso);
+    usosPorMaterial.set(chave, porVenda);
+  }
 
   const faltas: FaltaMaterial[] = [];
-  for (const insumo of insumos) {
-    const extra = saidaExtra.get(insumo.id) ?? 0;
-    let falta = -(insumo.quantidade_estoque - extra);
+  for (const [chave, grupo] of grupos) {
+    const extra = extraPorMaterial.get(chave) ?? 0;
+    let falta = -(grupo.estoque - extra);
     if (falta <= 0) continue;
 
-    // Quem precisa deste insumo
-    type Uso = { venda_id: number | null; cliente: string | null; data_prevista: string | null; quantidade: number };
-    const fila = usos.all(insumo.id).map((u) => ({ ...(u as unknown as Uso) }));
+    // Quem precisa deste material
+    const fila = [...(usosPorMaterial.get(chave)?.values() ?? [])].map((u) => ({ ...u }));
     if (donoDaSaida && extra > 0) {
       const mesma = donoDaSaida.venda_id === null ? undefined : fila.find((u) => u.venda_id === donoDaSaida.venda_id);
       if (mesma) mesma.quantidade += extra;
@@ -408,14 +461,20 @@ export function calcularFaltas(
         venda_id: uso.venda_id,
         cliente: uso.cliente,
         data_prevista: uso.data_prevista,
-        insumo_id: insumo.id,
-        insumo_nome: insumo.nome,
+        material: chave,
+        material_nome: grupo.nome,
         falta: parte,
       });
       falta -= parte;
     }
   }
   return faltas;
+}
+
+/** Materiais (categorias) dos insumos que vão sair. */
+function materiaisDa(saida: Map<number, number>): Set<number> {
+  const { doInsumo } = materiais();
+  return new Set([...saida.keys()].map((id) => doInsumo.get(id)).filter((c): c is number => c !== undefined));
 }
 
 /**
@@ -434,10 +493,13 @@ export function faltasAoSalvar(id: number | null, dados: Pick<DadosVenda, "statu
   // Pré-venda entra na fila pela data de entrega dela.
   const dono =
     dados.status === "pre_venda" ? { venda_id: id, data_prevista: dados.data_prevista, cliente: dados.cliente } : null;
-  return calcularFaltas(saida, dono).filter((f) => saida.has(f.insumo_id));
+  const afetados = materiaisDa(saida);
+  return calcularFaltas(saida, dono).filter((f) => afetados.has(f.material));
 }
 
 /** Faltas que uma saída avulsa (ex.: baixa) causaria nas pré-vendas. */
 export function faltasAoTirar(insumoId: number, quantidade: number): FaltaMaterial[] {
-  return calcularFaltas(new Map([[insumoId, quantidade]])).filter((f) => f.insumo_id === insumoId);
+  const saida = new Map([[insumoId, quantidade]]);
+  const afetados = materiaisDa(saida);
+  return calcularFaltas(saida).filter((f) => afetados.has(f.material));
 }

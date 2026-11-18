@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { CUSTO_ENERGIA_CENTAVOS, formatarMargem, precoComMargem } from "@/lib/custos";
-import { buscarFaltas, textoAlertaFaltas } from "@/lib/alertas";
+import { buscarFaltas, chaveMaterial, textoAlertaFaltas } from "@/lib/alertas";
 import { hojeISO } from "@/lib/datas";
 import { descontoProgressivo, lerPercentual, valorDesconto } from "@/lib/descontos";
 import { centavosParaTexto, formatarReais, paraCentavos } from "@/lib/dinheiro";
@@ -12,12 +12,14 @@ export interface KitOpcao {
   id: number;
   nome: string;
   preco_venda_centavos: number;
-  itens: { insumo_id: number; quantidade: number }[];
+  itens: { categoria_id: number; nome: string; quantidade: number }[]; // categorias que o kit pede
 }
 
 export interface InsumoOpcao {
   id: number;
   nome: string;
+  categoria_id: number | null;
+  categoria_nome: string | null;
   custo_unitario_centavos: number | null;
   quantidade_estoque: number;
   margem_lucro_percentual: number | null;
@@ -74,10 +76,45 @@ export default function FormVenda({
   kits: KitOpcao[];
   insumos: InsumoOpcao[];
   venda?: VendaEmEdicao;
-  faltas?: Record<number, number>; // pré-venda sem material: insumo_id -> quantidade que falta
+  faltas?: Record<number, number>; // pré-venda sem material: chaveMaterial (categoria) -> quantidade que falta
 }) {
   const router = useRouter();
   const kitInicial = venda ? null : (kits[0] ?? null); // venda nova começa com 1 caneca branca
+  const porId = new Map(insumos.map((i) => [i.id, i]));
+
+  /**
+   * Insumo usado para uma categoria do kit: o que já está na venda (se tiver) ou o de maior estoque.
+   * Null se a categoria não tem insumo ativo.
+   */
+  function insumoDaCategoria(categoriaId: number, lista: Item[]): number | null {
+    const naVenda = lista.find((i) => porId.get(i.insumo_id)?.categoria_id === categoriaId);
+    if (naVenda) return naVenda.insumo_id;
+    const opcoes = insumos.filter((i) => i.categoria_id === categoriaId);
+    if (opcoes.length === 0) return null;
+    return opcoes.reduce((melhor, i) => (i.quantidade_estoque > melhor.quantidade_estoque ? i : melhor)).id;
+  }
+
+  /** Soma (ou tira, se negativo) a quantidade de uma categoria nos itens da venda. */
+  function somarCategoria(lista: Item[], categoriaId: number, qtd: number): Item[] {
+    if (qtd > 0) {
+      const id = insumoDaCategoria(categoriaId, lista);
+      if (id === null) return lista;
+      return lista.some((i) => i.insumo_id === id)
+        ? lista.map((i) => (i.insumo_id === id ? { ...i, quantidade: String((Number(i.quantidade) || 0) + qtd) } : i))
+        : [...lista, { insumo_id: id, quantidade: String(qtd) }];
+    }
+    // Tirar: começa pela última linha da categoria
+    let resto = -qtd;
+    const nova = [...lista];
+    for (let n = nova.length - 1; n >= 0 && resto > 0; n--) {
+      if (porId.get(nova[n].insumo_id)?.categoria_id !== categoriaId) continue;
+      const atual = Number(nova[n].quantidade) || 0;
+      const tira = Math.min(atual, resto);
+      resto -= tira;
+      nova[n] = { ...nova[n], quantidade: String(atual - tira) };
+    }
+    return nova.filter((i) => Number(i.quantidade) !== 0 || i.quantidade.trim() === "");
+  }
   const [status, setStatus] = useState<StatusVenda>(venda?.status ?? "concluida");
   const [dataPrevista, setDataPrevista] = useState(venda?.data_prevista ?? "");
   const [qtdKits, setQtdKits] = useState<QtdKits>(() =>
@@ -87,8 +124,10 @@ export default function FormVenda({
         ? { [kitInicial.id]: 1 }
         : {},
   );
-  const [itens, setItens] = useState<Item[]>(
-    (venda?.itens ?? kitInicial?.itens ?? []).map((i) => ({ insumo_id: i.insumo_id, quantidade: String(i.quantidade) })),
+  const [itens, setItens] = useState<Item[]>(() =>
+    venda
+      ? venda.itens.map((i) => ({ insumo_id: i.insumo_id, quantidade: String(i.quantidade) }))
+      : (kitInicial?.itens ?? []).reduce<Item[]>((lista, ki) => somarCategoria(lista, ki.categoria_id, ki.quantidade), []),
   );
   // Desconto: automático (progressivo) até você digitar outro valor ou tirar
   const canecasIniciais = venda ? venda.kits.reduce((s, k) => s + k.quantidade, 0) : kitInicial ? 1 : 0;
@@ -117,7 +156,6 @@ export default function FormVenda({
   const [enviando, setEnviando] = useState(false);
   const resumoErrosRef = useRef<HTMLDivElement>(null);
 
-  const porId = new Map(insumos.map((i) => [i.id, i]));
   const custoInsumos = itens.reduce((soma, item) => {
     const qtd = Number(item.quantidade);
     const custo = porId.get(item.insumo_id)?.custo_unitario_centavos ?? 0;
@@ -135,14 +173,14 @@ export default function FormVenda({
   const brutoKits = totalKits(qtdKits);
   const descontoValor = valorDesconto(brutoKits, descontoPct ?? 0);
 
-  /** Insumos que fazem parte de algum kit da venda: não levam margem (já estão no preço do kit). */
-  const insumosDosKits = (q: QtdKits) =>
-    new Set(kits.filter((k) => (q[k.id] ?? 0) > 0).flatMap((k) => k.itens.map((i) => i.insumo_id)));
+  /** Categorias que algum kit da venda pede: não levam margem (já estão no preço do kit). */
+  const categoriasDosKits = (q: QtdKits) =>
+    new Set(kits.filter((k) => (q[k.id] ?? 0) > 0).flatMap((k) => k.itens.map((i) => i.categoria_id)));
 
   /** Preço unitário com margem, se a margem vale para o item (insumo fora dos kits e com margem); senão null. */
   function precoUnitarioComMargem(insumoId: number, q: QtdKits = qtdKits): number | null {
     const insumo = porId.get(insumoId);
-    if (insumosDosKits(q).has(insumoId) || !insumo) return null;
+    if (!insumo || (insumo.categoria_id !== null && categoriasDosKits(q).has(insumo.categoria_id))) return null;
     if (insumo.margem_lucro_percentual === null || insumo.custo_unitario_centavos === null) return null;
     return precoComMargem(insumo.custo_unitario_centavos, insumo.margem_lucro_percentual);
   }
@@ -180,24 +218,35 @@ export default function FormVenda({
 
   const mudarItens = (lista: Item[]) => aplicar({ lista });
 
-  /** Muda a quantidade de canecas de um kit: os insumos do kit acompanham (caneca, caixa, papel). */
+  /**
+   * Muda a quantidade de canecas de um kit: as categorias do kit acompanham (caneca, caixa, papel). Cada
+   * categoria usa o insumo que já está na venda ou, se não tiver, o de maior estoque.
+   */
   function mudarQtdKit(kit: KitOpcao, novaQtd: number) {
     const qtd = Math.max(0, Math.floor(novaQtd) || 0);
     const delta = qtd - (qtdKits[kit.id] ?? 0);
     if (delta === 0) return;
-    let lista = [...itens];
-    for (const ki of kit.itens) {
-      const atual = lista.find((i) => i.insumo_id === ki.insumo_id);
-      const nova = (atual ? Number(atual.quantidade) || 0 : 0) + ki.quantidade * delta;
-      lista = atual
-        ? nova > 0
-          ? lista.map((i) => (i.insumo_id === ki.insumo_id ? { ...i, quantidade: String(nova) } : i))
-          : lista.filter((i) => i.insumo_id !== ki.insumo_id)
-        : nova > 0
-          ? [...lista, { insumo_id: ki.insumo_id, quantidade: String(nova) }]
-          : lista;
-    }
+    const lista = kit.itens.reduce((l, ki) => somarCategoria(l, ki.categoria_id, ki.quantidade * delta), itens);
     aplicar({ q: { ...qtdKits, [kit.id]: qtd }, lista });
+  }
+
+  /** Troca o insumo da linha por outro da mesma categoria (ex.: caneca preta Top -> Trix). */
+  function trocarInsumo(deId: number, paraId: number) {
+    if (deId === paraId) return;
+    const de = itens.find((i) => i.insumo_id === deId);
+    if (!de) return;
+    const para = itens.find((i) => i.insumo_id === paraId);
+    mudarItens(
+      para
+        ? itens
+            .filter((i) => i.insumo_id !== deId)
+            .map((i) =>
+              i.insumo_id === paraId
+                ? { ...i, quantidade: String((Number(i.quantidade) || 0) + (Number(de.quantidade) || 0)) }
+                : i,
+            )
+        : itens.map((i) => (i.insumo_id === deId ? { ...i, insumo_id: paraId } : i)),
+    );
   }
 
   function adicionarInsumo() {
@@ -278,14 +327,31 @@ export default function FormVenda({
     observacao: "Observação",
   };
 
-  // Faltas da pré-venda gravada, só dos itens que continuam nela
-  const semMaterial = itens
-    .filter((i) => (faltas[i.insumo_id] ?? 0) > 0)
-    .map((i) => ({ nome: porId.get(i.insumo_id)?.nome ?? `Insumo ${i.insumo_id}`, falta: faltas[i.insumo_id] }));
+  // Material (categoria) de cada linha; a falta da pré-venda gravada aparece na primeira linha dele
+  const materialDe = (insumoId: number) => chaveMaterial({ id: insumoId, categoria_id: porId.get(insumoId)?.categoria_id ?? null });
+  const nomeMaterial = (insumoId: number) => {
+    const i = porId.get(insumoId);
+    return i?.categoria_nome ?? i?.nome ?? `Insumo ${insumoId}`;
+  };
+  const primeiraLinha = new Map<number, number>(); // material -> insumo da primeira linha
+  for (const i of itens) if (!primeiraLinha.has(materialDe(i.insumo_id))) primeiraLinha.set(materialDe(i.insumo_id), i.insumo_id);
+  const semMaterial = [...primeiraLinha]
+    .filter(([material]) => (faltas[material] ?? 0) > 0)
+    .map(([material, insumoId]) => ({ nome: nomeMaterial(insumoId), falta: faltas[material] }));
+  // Categoria pedida por um kit da venda que não tem nenhum insumo ativo
+  const categoriasSemInsumo = kits
+    .filter((k) => (qtdKits[k.id] ?? 0) > 0)
+    .flatMap((k) => k.itens)
+    .filter((ki, n, todos) => todos.findIndex((x) => x.categoria_id === ki.categoria_id) === n)
+    .filter((ki) => !insumos.some((i) => i.categoria_id === ki.categoria_id));
 
   const mensagem = (nome: string) =>
     erros[nome] ? <p className="mt-1 text-xs text-red-600">{erros[nome]}</p> : null;
   const disponiveis = insumos.filter((i) => !itens.some((item) => item.insumo_id === i.id));
+  // Opções agrupadas por categoria no "Adicionar insumo"
+  const gruposDisponiveis = [...new Set(disponiveis.map((i) => i.categoria_nome ?? "Sem categoria"))]
+    .sort((a, b) => a.localeCompare(b, "pt-BR"))
+    .map((nome) => ({ nome, insumos: disponiveis.filter((i) => (i.categoria_nome ?? "Sem categoria") === nome) }));
 
   return (
     <form onSubmit={enviar} className="max-w-3xl space-y-5 rounded border border-gray-200 bg-white p-5">
@@ -365,6 +431,12 @@ export default function FormVenda({
           })}
         </div>
         {mensagem("kits")}
+        {categoriasSemInsumo.length > 0 && (
+          <p className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Sem insumo cadastrado na categoria {categoriasSemInsumo.map((c) => `"${c.nome}"`).join(", ")}: cadastre um
+            insumo nela ou adicione o item abaixo à mão.
+          </p>
+        )}
 
         <div className="mt-3 flex flex-wrap items-end gap-3 text-sm">
           <label className="block">
@@ -445,19 +517,40 @@ export default function FormVenda({
                 const comMargem = precoUnitarioComMargem(item.insumo_id);
                 const unitarioFinal = comMargem ?? custo; // sem margem (ou item do kit): o próprio custo
                 const qtd = Number(item.quantidade);
-                const falta = faltas[item.insumo_id] ?? 0;
+                const material = materialDe(item.insumo_id);
+                const falta = primeiraLinha.get(material) === item.insumo_id ? (faltas[material] ?? 0) : 0;
+                // Outros insumos da mesma categoria, para trocar (ex.: caneca preta Top -> Trix)
+                const mesmaCategoria =
+                  insumo?.categoria_id == null ? [] : insumos.filter((i) => i.categoria_id === insumo.categoria_id);
                 return (
                   <tr key={item.insumo_id} className={`border-b border-gray-100 ${falta > 0 ? "bg-red-50" : ""}`}>
                     <td className="px-3 py-2">
-                      {insumo?.nome ?? `Insumo ${item.insumo_id}`}
-                      {insumo && (
+                      {mesmaCategoria.length > 1 ? (
+                        <select
+                          value={item.insumo_id}
+                          onChange={(e) => trocarInsumo(item.insumo_id, Number(e.target.value))}
+                          aria-label={`Trocar ${insumo?.nome ?? "insumo"}`}
+                          className="max-w-xs rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                        >
+                          {mesmaCategoria.map((i) => (
+                            <option key={i.id} value={i.id}>
+                              {i.nome} ({i.quantidade_estoque} em estoque)
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        (insumo?.nome ?? `Insumo ${item.insumo_id}`)
+                      )}
+                      {insumo?.categoria_nome && <div className="text-xs text-gray-500">{insumo.categoria_nome}</div>}
+                      {insumo && mesmaCategoria.length <= 1 && (
                         <span className={`ml-2 text-xs ${insumo.quantidade_estoque < 1 ? "text-red-600" : "text-gray-500"}`}>
                           ({insumo.quantidade_estoque} em estoque)
                         </span>
                       )}
                       {falta > 0 && (
                         <div className="mt-1 text-xs font-semibold text-red-600">
-                          ⚠️ Não há esse material: falta{falta > 1 ? "m" : ""} {falta} para esta pré-venda
+                          ⚠️ Não há esse material ({nomeMaterial(item.insumo_id)}): falta{falta > 1 ? "m" : ""} {falta}{" "}
+                          para esta pré-venda
                         </div>
                       )}
                       {comMargem !== null && insumo?.margem_lucro_percentual != null && (
@@ -507,11 +600,15 @@ export default function FormVenda({
         <div className="mt-3 flex gap-2">
           <select value={novoInsumo} onChange={(e) => setNovoInsumo(e.target.value)} className={campo}>
             <option value="">Adicionar insumo (laço, papel...)</option>
-            {disponiveis.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.nome}
-                {i.custo_unitario_centavos !== null ? ` — ${formatarReais(i.custo_unitario_centavos)}` : ""}
-              </option>
+            {gruposDisponiveis.map((g) => (
+              <optgroup key={g.nome} label={g.nome}>
+                {g.insumos.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.nome}
+                    {i.custo_unitario_centavos !== null ? ` — ${formatarReais(i.custo_unitario_centavos)}` : ""}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <button

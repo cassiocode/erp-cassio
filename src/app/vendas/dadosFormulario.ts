@@ -7,12 +7,14 @@ export function dadosDoFormulario() {
     id,
     nome,
     preco_venda_centavos,
-    itens: itens.map(({ insumo_id, quantidade }) => ({ insumo_id, quantidade })),
+    itens: itens.map(({ categoria_id, nome, quantidade }) => ({ categoria_id, nome, quantidade })),
   }));
   const insumos = listarInsumos({ ativo: 1 }).map(
-    ({ id, nome, custo_unitario_centavos, quantidade_estoque, margem_lucro_percentual }) => ({
+    ({ id, nome, custo_unitario_centavos, quantidade_estoque, margem_lucro_percentual, categoria_id, categoria_nome }) => ({
       id,
       nome,
+      categoria_id,
+      categoria_nome,
       custo_unitario_centavos,
       quantidade_estoque,
       margem_lucro_percentual,

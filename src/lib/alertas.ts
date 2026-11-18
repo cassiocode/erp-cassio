@@ -5,8 +5,17 @@ export interface Falta {
   venda_id: number | null;
   cliente: string | null;
   data_prevista: string | null;
-  insumo_nome: string;
+  material: number;
+  material_nome: string;
   falta: number;
+}
+
+/**
+ * Chave do material para o controle de falta: a categoria do insumo (Top e Trix contam juntas como
+ * "caneca preta"); insumo sem categoria conta sozinho (id negativo, para não bater com categoria).
+ */
+export function chaveMaterial(insumo: { id: number; categoria_id: number | null }): number {
+  return insumo.categoria_id ?? -insumo.id;
 }
 
 /** "a pré-venda #12 (Maria, entrega 20/11/2026)" ou "esta venda". */
@@ -18,7 +27,7 @@ export function descreverDono(f: Pick<Falta, "venda_id" | "cliente" | "data_prev
 
 /** Texto do aviso de falta de material, para confirm(). */
 export function textoAlertaFaltas(faltas: Falta[], pergunta: string): string {
-  const linhas = faltas.map((f) => `• ${f.falta}× ${f.insumo_nome} para ${descreverDono(f)}`);
+  const linhas = faltas.map((f) => `• ${f.falta}× ${f.material_nome} para ${descreverDono(f)}`);
   return `⚠️ Vai faltar material:\n${linhas.join("\n")}\n\n${pergunta}`;
 }
 

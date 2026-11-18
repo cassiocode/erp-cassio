@@ -22,13 +22,16 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
       custo_unitario_centavos: i.custo_unitario_centavos,
       quantidade_estoque: 0,
       margem_lucro_percentual: null,
+      categoria_id: i.categoria_id,
+      categoria_nome: i.categoria_nome,
     })),
   ];
 
-  // Material que falta para esta pré-venda (estoque negativo, entrega mais próxima tem prioridade)
+  // Material (categoria) que falta para esta pré-venda (estoque somado negativo; entrega mais próxima
+  // tem prioridade)
   const faltas: Record<number, number> = {};
   for (const f of calcularFaltas()) {
-    if (f.venda_id === venda.id) faltas[f.insumo_id] = (faltas[f.insumo_id] ?? 0) + f.falta;
+    if (f.venda_id === venda.id) faltas[f.material] = (faltas[f.material] ?? 0) + f.falta;
   }
 
   return (

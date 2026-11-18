@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "../connection";
+import { criarCategoria } from "./categorias";
 import { registrarCompra } from "./compras";
 import { buscarInsumoPorId, criarInsumo } from "./insumos";
 import {
@@ -18,7 +19,8 @@ import {
   type DadosVenda,
 } from "./vendas";
 
-// DB_PATH=":memory:": banco vazio com migrations. Os kits padrão existem, mas sem itens (não havia insumos).
+// DB_PATH=":memory:": banco vazio com migrations. Os kits padrão existem; os itens deles (categorias) são
+// montados aqui.
 
 let branca: number;
 let preta: number;
@@ -26,9 +28,20 @@ let caixa: number;
 let laco: number;
 let kitBranca: number;
 let kitPreta: number;
+let catBranca: number;
+let catPreta: number;
+let catCaixa: number;
+let catLaco: number;
 
-function insumo(nome: string, totalCentavos: number, quantidade: number): number {
-  return criarInsumo({ nome, valor_pago_centavos: totalCentavos, quantidade_comprada: quantidade, data_compra: "2026-11-01", observacao: null }).id;
+function insumo(nome: string, totalCentavos: number, quantidade: number, categoria_id: number): number {
+  return criarInsumo({
+    nome,
+    valor_pago_centavos: totalCentavos,
+    quantidade_comprada: quantidade,
+    data_compra: "2026-11-01",
+    observacao: null,
+    categoria_id,
+  }).id;
 }
 
 function venda(extra: Partial<DadosVenda> = {}): DadosVenda {
@@ -53,26 +66,32 @@ function venda(extra: Partial<DadosVenda> = {}): DadosVenda {
 
 beforeEach(() => {
   const db = getDb();
-  db.exec("DELETE FROM venda_itens; DELETE FROM venda_kits; DELETE FROM vendas; DELETE FROM kit_itens; DELETE FROM compras_insumo; DELETE FROM insumos;");
-  branca = insumo("Caneca branca 325ml", 12600, 12); // R$ 10,50
-  preta = insumo("Caneca preta 325ml", 20400, 12); // R$ 17,00
-  caixa = insumo("Caixa para caneca de porcelana 325ml", 10000, 50); // R$ 2,00
-  laco = insumo("Laço azul", 290, 10); // R$ 0,29
+  db.exec(
+    "DELETE FROM venda_itens; DELETE FROM venda_kits; DELETE FROM vendas; DELETE FROM kit_itens; DELETE FROM compras_insumo; DELETE FROM insumos; DELETE FROM categorias;",
+  );
+  catBranca = criarCategoria("Caneca cor branca").id;
+  catPreta = criarCategoria("Caneca Cor Preta c/ Tarja Branca").id;
+  catCaixa = criarCategoria("Caixa para caneca").id;
+  catLaco = criarCategoria("Laço").id;
+  branca = insumo("Caneca branca 325ml", 12600, 12, catBranca); // R$ 10,50
+  preta = insumo("Caneca preta 325ml", 20400, 12, catPreta); // R$ 17,00
+  caixa = insumo("Caixa para caneca de porcelana 325ml", 10000, 50, catCaixa); // R$ 2,00
+  laco = insumo("Laço azul", 290, 10, catLaco); // R$ 0,29
 
   kitBranca = Number(db.prepare("SELECT id FROM kits WHERE nome = 'Caneca branca'").get()?.id);
   kitPreta = Number(db.prepare("SELECT id FROM kits WHERE nome = 'Caneca preta'").get()?.id);
-  const ligar = db.prepare("INSERT INTO kit_itens (kit_id, insumo_id) VALUES (?, ?)");
-  ligar.run(kitBranca, branca);
-  ligar.run(kitBranca, caixa);
-  ligar.run(kitPreta, preta);
-  ligar.run(kitPreta, caixa);
+  const ligar = db.prepare("INSERT INTO kit_itens (kit_id, categoria_id) VALUES (?, ?)");
+  ligar.run(kitBranca, catBranca);
+  ligar.run(kitBranca, catCaixa);
+  ligar.run(kitPreta, catPreta);
+  ligar.run(kitPreta, catCaixa);
 });
 
 describe("kits", () => {
-  it("caneca branca R$ 29,90 e caneca preta R$ 34,90, cada uma com a caixa", () => {
+  it("caneca branca R$ 29,90 e caneca preta R$ 34,90, cada uma com a caixa (por categoria)", () => {
     expect(listarKits().map((k) => ({ nome: k.nome, preco: k.preco_venda_centavos, itens: k.itens.map((i) => i.nome) }))).toEqual([
-      { nome: "Caneca branca", preco: 2990, itens: ["Caixa para caneca de porcelana 325ml", "Caneca branca 325ml"] },
-      { nome: "Caneca preta", preco: 3490, itens: ["Caixa para caneca de porcelana 325ml", "Caneca preta 325ml"] },
+      { nome: "Caneca branca", preco: 2990, itens: ["Caixa para caneca", "Caneca cor branca"] },
+      { nome: "Caneca preta", preco: 3490, itens: ["Caixa para caneca", "Caneca Cor Preta c/ Tarja Branca"] },
     ]);
   });
 });
@@ -278,7 +297,7 @@ describe("faltas de material", () => {
     pre("Ana", "2026-11-15", 4); // laço: 10 -> 6
     const bia = pre("Bia", "2026-11-18", 4); // 6 -> 2
     expect(faltasAoTirar(laco, 3)).toEqual([
-      { venda_id: bia, cliente: "Bia", data_prevista: "2026-11-18", insumo_id: laco, insumo_nome: "Laço azul", falta: 1 },
+      { venda_id: bia, cliente: "Bia", data_prevista: "2026-11-18", material: catLaco, material_nome: "Laço", falta: 1 },
     ]);
     // Quebrar 7: falta 5 -> 4 da Bia (entrega depois) e 1 da Ana
     expect(faltasAoTirar(laco, 7).map((f) => [f.cliente, f.falta])).toEqual([
@@ -312,5 +331,52 @@ describe("faltas de material", () => {
   it("estoque já negativo aparece nas faltas da pré-venda", () => {
     const bia = pre("Bia", "2026-11-18", 12); // laço: 10 -> -2
     expect(calcularFaltas().map((f) => [f.venda_id, f.falta])).toEqual([[bia, 2]]);
+  });
+});
+
+describe("faltas por categoria", () => {
+  let trix: number;
+  beforeEach(() => {
+    // Segunda caneca preta (outro fornecedor), mesma categoria
+    trix = insumo("Caneca preta 325ml - Trix", 6000, 3, catPreta); // estoque 3
+    getDb().prepare("UPDATE insumos SET quantidade_estoque = 0 WHERE id = ?").run(preta); // Top acabou
+  });
+
+  const prePreta = (cliente: string, data: string, insumoId: number, qtd: number) =>
+    registrarVenda(
+      venda({
+        status: "pre_venda",
+        cliente,
+        data_prevista: data,
+        kits: [{ kit_id: kitPreta, quantidade: qtd }],
+        itens: [{ insumo_id: insumoId, quantidade: qtd }],
+      }),
+    ).id;
+
+  it("Top zerada mas Trix com estoque: não falta caneca preta", () => {
+    prePreta("Ana", "2026-11-20", preta, 2); // Top: 0 -> -2, Trix 3: categoria = 1
+    expect(calcularFaltas()).toEqual([]);
+    expect(faltasAoTirar(trix, 1)).toEqual([]); // categoria 1 -> 0
+  });
+
+  it("quando a categoria toda acaba, a falta aparece com o nome da categoria", () => {
+    const ana = prePreta("Ana", "2026-11-20", preta, 2); // categoria: 3 - 2 = 1
+    expect(faltasAoTirar(trix, 3)).toEqual([
+      { venda_id: ana, cliente: "Ana", data_prevista: "2026-11-20", material: catPreta, material_nome: "Caneca Cor Preta c/ Tarja Branca", falta: 2 },
+    ]);
+  });
+
+  it("nova venda de outra caneca da mesma categoria avisa a pré-venda", () => {
+    const ana = prePreta("Ana", "2026-11-20", trix, 3); // Trix 3 -> 0; Top 0
+    const faltas = faltasAoSalvar(null, { status: "concluida", data_prevista: null, cliente: null, itens: [{ insumo_id: preta, quantidade: 1 }] });
+    expect(faltas.map((f) => [f.venda_id, f.material_nome, f.falta])).toEqual([[ana, "Caneca Cor Preta c/ Tarja Branca", 1]]);
+  });
+
+  it("os itens da venda trazem a categoria do insumo", () => {
+    const v = registrarVenda(venda());
+    expect(v.itens.map((i) => [i.nome, i.categoria_nome])).toEqual([
+      ["Caneca branca 325ml", "Caneca cor branca"],
+      ["Caixa para caneca de porcelana 325ml", "Caixa para caneca"],
+    ]);
   });
 });

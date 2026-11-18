@@ -356,6 +356,30 @@ const migrations: Migration[] = [
       DROP TABLE regras_categoria;
     `,
   },
+  {
+    versao: 14,
+    nome: "kits_por_categoria",
+    sql: `
+      -- Kit passa a pedir categorias (1 caneca preta qualquer + 1 caixa + 1 papel); a venda escolhe o insumo
+      CREATE TABLE kit_itens_novo (
+        kit_id INTEGER NOT NULL REFERENCES kits (id),
+        categoria_id INTEGER NOT NULL REFERENCES categorias (id),
+        quantidade INTEGER NOT NULL DEFAULT 1 CHECK (quantidade >= 1),
+        PRIMARY KEY (kit_id, categoria_id)
+      );
+      INSERT INTO kit_itens_novo (kit_id, categoria_id, quantidade)
+        SELECT ki.kit_id, i.categoria_id, MAX(ki.quantidade)
+          FROM kit_itens ki JOIN insumos i ON i.id = ki.insumo_id
+         GROUP BY ki.kit_id, i.categoria_id;
+      -- Kits padrão sem itens (banco novo): ligam na base pelo nome do kit
+      INSERT OR IGNORE INTO kit_itens_novo (kit_id, categoria_id)
+        SELECT k.id, c.id FROM kits k JOIN categorias c
+            ON (k.nome = 'Caneca branca' AND c.nome = 'Caneca cor branca')
+            OR (k.nome = 'Caneca preta' AND c.nome = 'Caneca Cor Preta c/ Tarja Branca');
+      DROP TABLE kit_itens;
+      ALTER TABLE kit_itens_novo RENAME TO kit_itens;
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

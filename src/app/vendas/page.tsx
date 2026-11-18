@@ -128,8 +128,8 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
                       )}
                     </div>
                     {faltas.length > 0 && (
-                      <div className="mt-1 text-xs font-medium text-red-600" title={faltas.map((f) => `${f.falta}× ${f.insumo_nome} para ${descreverDono(f)}`).join("\n")}>
-                        Falta: {faltas.map((f) => `${f.falta}× ${f.insumo_nome}`).join(", ")}
+                      <div className="mt-1 text-xs font-medium text-red-600" title={faltas.map((f) => `${f.falta}× ${f.material_nome} para ${descreverDono(f)}`).join("\n")}>
+                        Falta: {faltas.map((f) => `${f.falta}× ${f.material_nome}`).join(", ")}
                       </div>
                     )}
                   </td>

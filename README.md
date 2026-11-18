@@ -22,15 +22,16 @@ Abra http://localhost:3000 (vai para `/insumos`).
   (entrega futura com data prevista; já tira do estoque) ou **Rascunho** (não mexe no estoque). Todos podem
   ser **editados** (até trocar o tipo; o estoque acompanha a diferença). **Cancelar** uma venda ou
   pré-venda devolve ao estoque os insumos que ela tirou. A lista mostra as pré-vendas no topo, pela entrega mais próxima. **Concluir** uma pré-venda não
-  baixa de novo. Se uma venda, pré-venda ou baixa deixar o estoque negativo, aparece o aviso de para qual
-  pré-venda vai faltar material (a entrega mais próxima tem prioridade) e a pré-venda fica marcada com
+  baixa de novo. Se uma venda, pré-venda ou baixa deixar o estoque **da categoria** negativo (soma de todos os
+  insumos dela: caneca preta Top + Trix), aparece o aviso de para qual pré-venda vai faltar material (a entrega mais próxima tem prioridade) e a pré-venda fica marcada com
   "Falta". Lista com faturamento, custo e lucro (só vendas concluídas).
   Cada venda tem a **quantidade de canecas** de cada kit (dá para misturar branca e preta). **Desconto
   progressivo** só sobre o preço das canecas: 3 a 5 canecas = 5%, 6 ou mais = 10%. O desconto pode ser
   trocado por outro valor (ex.: 20%) ou tirado; ele reduz o preço e o lucro, o custo não muda. **Nova venda** (`/vendas/nova`): escolha o kit
   (caneca branca R$ 29,90 ou caneca preta R$ 34,90, os dois já com a caixa de porcelana 325 ml), ajuste
   quantidades, adicione outros insumos (laço...) e edite o preço. Os kits já trazem 1 folha de papel de
-  sublimação. Toda venda soma um custo fixo de energia de R$ 0,50 (dá para desmarcar). A venda tira os
+  sublimação. O kit pede **categorias** (1 caneca preta + 1 caixa para caneca + 1 papel): cada uma vira o
+  insumo de **maior estoque** da categoria, e dá para trocar na linha (ex.: Top no lugar da Trix). Toda venda soma um custo fixo de energia de R$ 0,50 (dá para desmarcar). A venda tira os
   insumos do estoque e guarda o custo do dia; apagar a venda devolve os insumos.
   Insumos com **margem de lucro** (definida no cadastro do insumo) somam no preço quando adicionados fora do
   kit: custo × (1 + margem). Ex.: trufa de R$ 5,99 com 50% soma R$ 8,99.
@@ -38,6 +39,10 @@ Abra http://localhost:3000 (vai para `/insumos`).
   embalagens, papel, tinta, brindes). No cadastro você informa a primeira compra: **total pago** e
   **quantidade comprada** (ex.: 12 canecas por R$ 126,00 = R$ 10,50 cada). Ao digitar o nome, aparecem
   os insumos já cadastrados. A quantidade em estoque pode ficar negativa.
+  Todo insumo tem uma **categoria** (obrigatória), com filtro na lista.
+- **Categorias** (`/categorias`): o tipo do material, independente do fornecedor. Bases de caneca:
+  **Caneca cor branca** e **Caneca Cor Preta c/ Tarja Branca** (Top, Trix...). Crie, renomeie e inative
+  categorias aqui; a lista mostra quantos insumos ativos e o estoque somado de cada uma.
 - **Compras do insumo** (`/insumos/:id/compras`): lance novas compras (8 em estoque + 12 comprados = 20).
   O custo do insumo é a **média ponderada** das compras. Apagar uma compra tira a quantidade do estoque.
 
