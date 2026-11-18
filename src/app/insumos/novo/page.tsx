@@ -1,3 +1,4 @@
+import { listarCategorias } from "@/lib/db/repositories/categorias";
 import { listarInsumos } from "@/lib/db/repositories/insumos";
 import FormInsumo from "../_components/FormInsumo";
 
@@ -13,7 +14,7 @@ export default function NovoInsumoPage() {
   return (
     <div>
       <h1 className="mb-4 text-2xl font-semibold">Novo insumo</h1>
-      <FormInsumo sugestoes={sugestoes} />
+      <FormInsumo sugestoes={sugestoes} categorias={listarCategorias({ ativo: 1 }).map(({ id, nome }) => ({ id, nome }))} />
     </div>
   );
 }

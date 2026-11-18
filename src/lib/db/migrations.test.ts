@@ -65,7 +65,7 @@ describe("migrations", () => {
     rodarMigrations(db);
     rodarMigrations(db);
     const versoes = db.prepare("SELECT versao FROM schema_migrations ORDER BY versao").all().map((v) => v.versao);
-    expect(versoes).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(versoes).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   });
 
   it("migration 5 liga os kits padrão aos insumos ativos pelo nome", () => {
@@ -141,6 +141,48 @@ describe("migrations", () => {
     expect(itens).toEqual([
       { kit: "Caneca branca", insumo: "Papel Sublimação Fundo Rosa - Jojo", quantidade: 1 },
       { kit: "Caneca preta", insumo: "Papel Sublimação Fundo Rosa - Jojo", quantidade: 1 },
+    ]);
+  });
+
+  it("migration 13 categoriza os insumos pelo nome", () => {
+    const db = new DatabaseSync(":memory:");
+    rodarMigrations(db, 12);
+    const inserir = db.prepare(
+      "INSERT INTO insumos (nome, quantidade_estoque, ativo, criado_em, atualizado_em) VALUES (?, 1, 1, 'x', 'x')",
+    );
+    [
+      "Caneca branca 325ml - Live",
+      "Caneca branca 325ml - Metalnox",
+      "Caneca Preta 325 - Top",
+      "Caneca Preta 325 - Trix",
+      "Caixa Para Caneca De Porcelana 325 ML",
+      "Caixa 12x12x11 Papelão Simples",
+      "Papel Sublimação Fundo Rosa - Jojo",
+      "Tinta Genesis Sublimática",
+      "Laço Lilas - Fácil",
+      "Trufa Branco 30g - Cacau Show",
+      "Tablete Branco 9g - Cacau Show",
+      "Fita térmica",
+    ].forEach((n) => inserir.run(n));
+    rodarMigrations(db);
+
+    const categorias = db
+      .prepare("SELECT i.nome AS insumo, c.nome AS categoria FROM insumos i JOIN categorias c ON c.id = i.categoria_id ORDER BY i.id")
+      .all()
+      .map((l) => [l.insumo, l.categoria]);
+    expect(categorias).toEqual([
+      ["Caneca branca 325ml - Live", "Caneca cor branca"],
+      ["Caneca branca 325ml - Metalnox", "Caneca cor branca"],
+      ["Caneca Preta 325 - Top", "Caneca Cor Preta c/ Tarja Branca"],
+      ["Caneca Preta 325 - Trix", "Caneca Cor Preta c/ Tarja Branca"],
+      ["Caixa Para Caneca De Porcelana 325 ML", "Caixa para caneca"],
+      ["Caixa 12x12x11 Papelão Simples", "Caixa de envio"],
+      ["Papel Sublimação Fundo Rosa - Jojo", "Papel de sublimação"],
+      ["Tinta Genesis Sublimática", "Tinta de sublimação"],
+      ["Laço Lilas - Fácil", "Laço"],
+      ["Trufa Branco 30g - Cacau Show", "Trufa"],
+      ["Tablete Branco 9g - Cacau Show", "Tablete de chocolate"],
+      ["Fita térmica", "Outros"],
     ]);
   });
 });

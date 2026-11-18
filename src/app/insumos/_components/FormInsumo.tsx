@@ -15,8 +15,15 @@ export interface InsumoEmEdicao {
   quantidade_estoque: number;
   observacao: string | null;
   margem_lucro_percentual: number | null;
+  categoria_id: number | null;
   custo_unitario_centavos: number | null;
   quantidade_comprada: number;
+}
+
+/** Categoria que dá para escolher (ativas + a atual do insumo, mesmo inativa). */
+export interface CategoriaOpcao {
+  id: number;
+  nome: string;
 }
 
 const campo =
@@ -30,12 +37,15 @@ const campo =
 export default function FormInsumo({
   insumo,
   sugestoes,
+  categorias,
 }: {
   insumo?: InsumoEmEdicao; // se vier, é edição
   sugestoes?: SugestaoInsumo[]; // insumos já cadastrados, para o campo Nome do cadastro novo
+  categorias: CategoriaOpcao[];
 }) {
   const router = useRouter();
   const [nome, setNome] = useState(insumo?.nome ?? "");
+  const [categoriaId, setCategoriaId] = useState(insumo?.categoria_id ? String(insumo.categoria_id) : "");
   const [observacao, setObservacao] = useState(insumo?.observacao ?? "");
   const [estoque, setEstoque] = useState(String(insumo?.quantidade_estoque ?? 0));
   const [compra, setCompra] = useState<ValoresCompra>({ data_compra: hojeISO(), valor_pago: "", quantidade: "1" });
@@ -51,9 +61,10 @@ export default function FormInsumo({
     setErros({});
 
     const corpo = insumo
-      ? { nome, quantidade_estoque: estoque, observacao, margem_lucro: margem }
+      ? { nome, categoria_id: categoriaId, quantidade_estoque: estoque, observacao, margem_lucro: margem }
       : {
           nome,
+          categoria_id: categoriaId,
           observacao,
           margem_lucro: margem,
           data_compra: compra.data_compra,
@@ -97,6 +108,26 @@ export default function FormInsumo({
           <input value={nome} onChange={(e) => setNome(e.target.value)} className={campo} />
         )}
         {mensagem("nome")}
+      </label>
+
+      <label className="block text-sm sm:w-1/2">
+        <span className="mb-1 block font-medium">Categoria *</span>
+        <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={campo}>
+          <option value="">Escolha...</option>
+          {categorias.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nome}
+            </option>
+          ))}
+        </select>
+        <span className="mt-1 block text-xs text-gray-500">
+          Ex.: a caneca preta Top e a Trix são &quot;Caneca Cor Preta c/ Tarja Branca&quot;. Nova categoria: aba{" "}
+          <Link href="/categorias" className="text-blue-700 hover:underline">
+            Categorias
+          </Link>
+          .
+        </span>
+        {mensagem("categoria_id")}
       </label>
 
       {insumo ? (

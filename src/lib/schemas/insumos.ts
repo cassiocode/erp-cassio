@@ -54,6 +54,12 @@ const margemLucro = z
     return Math.round(numero * 100) / 100;
   });
 
+/** Categoria escolhida no cadastro (obrigatória). */
+const categoria = z.coerce
+  .number({ error: "Escolha a categoria" })
+  .int("Escolha a categoria")
+  .positive("Escolha a categoria");
+
 /** Cadastro de insumo novo: o total pago e a quantidade viram a primeira compra. */
 export const novoInsumoSchema = z
   .object({
@@ -63,6 +69,7 @@ export const novoInsumoSchema = z
     data_compra: dataCompra,
     observacao,
     margem_lucro: margemLucro,
+    categoria_id: categoria,
   })
   .transform(({ valor_pago, margem_lucro, ...resto }) => ({
     ...resto,
@@ -79,6 +86,7 @@ export const edicaoInsumoSchema = z
       .int("A quantidade em estoque deve ser um número inteiro"),
     observacao,
     margem_lucro: margemLucro,
+    categoria_id: categoria,
   })
   .transform(({ margem_lucro, ...resto }) => ({ ...resto, margem_lucro_percentual: margem_lucro }));
 

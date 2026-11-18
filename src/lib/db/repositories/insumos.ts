@@ -10,6 +10,8 @@ export interface Insumo {
   quantidade_estoque: number; // pode ser negativa
   observacao: string | null;
   margem_lucro_percentual: number | null; // usada só na venda; null = sem margem
+  categoria_id: number | null; // obrigatória no cadastro (a API exige); null só em dado antigo
+  categoria_nome: string | null;
   ativo: number; // 1 = ativo, 0 = inativo
   criado_em: string;
   atualizado_em: string;
@@ -27,6 +29,7 @@ export interface DadosNovoInsumo {
   data_compra: string; // AAAA-MM-DD
   observacao: string | null;
   margem_lucro_percentual?: number | null;
+  categoria_id?: number | null;
 }
 
 /** Edição: total pago e quantidade mudam só pelas compras. */
@@ -35,17 +38,20 @@ export interface DadosEdicaoInsumo {
   quantidade_estoque: number;
   observacao: string | null;
   margem_lucro_percentual?: number | null; // ausente = sem margem
+  categoria_id?: number | null; // ausente = mantém a atual
 }
 
 export interface FiltrosInsumos {
   busca?: string;
   ativo?: 0 | 1;
+  categoria_id?: number;
 }
 
 const MENSAGEM_DUPLICADO = "Já existe um insumo com este nome";
 
 const SELECT_INSUMO = `
   SELECT i.*,
+         (SELECT cat.nome FROM categorias cat WHERE cat.id = i.categoria_id) AS categoria_nome,
          COALESCE(SUM(c.valor_pago_centavos), 0) AS total_pago_centavos,
          COALESCE(SUM(c.quantidade), 0) AS quantidade_comprada
     FROM insumos i
@@ -70,6 +76,10 @@ export function listarInsumos(filtros: FiltrosInsumos = {}): Insumo[] {
     const termo = normalizarTexto(filtros.busca).replace(/[\\%_]/g, "\\$&");
     condicoes.push("normalizar(i.nome) LIKE ? ESCAPE '\\'");
     params.push(`%${termo}%`);
+  }
+  if (filtros.categoria_id !== undefined) {
+    condicoes.push("i.categoria_id = ?");
+    params.push(filtros.categoria_id);
   }
   if (filtros.ativo !== undefined) {
     condicoes.push("i.ativo = ?");
@@ -105,10 +115,10 @@ export function criarInsumo(dados: DadosNovoInsumo): Insumo {
     const id = transacao(() => {
       const resultado = getDb()
         .prepare(
-          `INSERT INTO insumos (nome, quantidade_estoque, observacao, margem_lucro_percentual, ativo, criado_em, atualizado_em)
-           VALUES (?, 0, ?, ?, 1, ?, ?)`,
+          `INSERT INTO insumos (nome, quantidade_estoque, observacao, margem_lucro_percentual, categoria_id, ativo, criado_em, atualizado_em)
+           VALUES (?, 0, ?, ?, ?, 1, ?, ?)`,
         )
-        .run(dados.nome, dados.observacao, dados.margem_lucro_percentual ?? null, agora, agora);
+        .run(dados.nome, dados.observacao, dados.margem_lucro_percentual ?? null, dados.categoria_id ?? null, agora, agora);
       const novoId = Number(resultado.lastInsertRowid);
       inserirCompra(novoId, {
         data_compra: dados.data_compra,
@@ -126,13 +136,15 @@ export function criarInsumo(dados: DadosNovoInsumo): Insumo {
 }
 
 export function atualizarInsumo(id: number, dados: DadosEdicaoInsumo): Insumo | null {
-  if (!buscarInsumoPorId(id)) return null;
+  const atual = buscarInsumoPorId(id);
+  if (!atual) return null;
   if (nomeJaExiste(dados.nome, id)) throw new NomeDuplicadoError(MENSAGEM_DUPLICADO);
 
   try {
     getDb()
       .prepare(
-        `UPDATE insumos SET nome = ?, quantidade_estoque = ?, observacao = ?, margem_lucro_percentual = ?, atualizado_em = ?
+        `UPDATE insumos SET nome = ?, quantidade_estoque = ?, observacao = ?, margem_lucro_percentual = ?, categoria_id = ?,
+                atualizado_em = ?
           WHERE id = ?`,
       )
       .run(
@@ -140,6 +152,7 @@ export function atualizarInsumo(id: number, dados: DadosEdicaoInsumo): Insumo | 
         dados.quantidade_estoque,
         dados.observacao,
         dados.margem_lucro_percentual ?? null,
+        dados.categoria_id === undefined ? atual.categoria_id : dados.categoria_id,
         new Date().toISOString(),
         id,
       );

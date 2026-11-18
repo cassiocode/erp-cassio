@@ -303,6 +303,59 @@ const migrations: Migration[] = [
       ALTER TABLE vendas ADD COLUMN valor_pago_centavos INTEGER NOT NULL DEFAULT 0 CHECK (valor_pago_centavos >= 0);
     `,
   },
+  {
+    versao: 13,
+    nome: "categorias_de_insumo",
+    sql: `
+      -- Categoria = o "tipo" do material (ex.: Caneca Cor Preta c/ Tarja Branca), independente do fornecedor
+      -- (Top, Trix...). Kits, faltas e alertas de estoque olham a categoria (estoque somado dos insumos dela).
+      CREATE TABLE categorias (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX idx_categorias_nome ON categorias (nome COLLATE NOCASE);
+
+      -- Regras pelo começo do nome (a primeira que casar vale); o que não casar vai para "Outros"
+      CREATE TEMP TABLE regras_categoria (ordem INTEGER, padrao TEXT, nome TEXT);
+      INSERT INTO regras_categoria VALUES
+        (1, 'caneca%branc%', 'Caneca cor branca'),
+        (2, 'caneca%pret%', 'Caneca Cor Preta c/ Tarja Branca'),
+        (3, 'caixa%caneca%', 'Caixa para caneca'),
+        (4, 'caixa%', 'Caixa de envio'),
+        (5, 'papel%sublima%', 'Papel de sublimação'),
+        (6, 'tinta%', 'Tinta de sublimação'),
+        (7, 'la_o%', 'Laço'),
+        (8, 'trufa%', 'Trufa'),
+        (9, 'tablete%', 'Tablete de chocolate');
+
+      -- As duas bases sempre existem; as outras só se algum insumo cair nelas
+      INSERT INTO categorias (nome, criado_em, atualizado_em)
+        SELECT r.nome, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          FROM regras_categoria r
+         WHERE r.ordem <= 2
+            OR EXISTS (SELECT 1 FROM insumos i WHERE lower(trim(i.nome)) LIKE r.padrao)
+         ORDER BY r.ordem;
+
+      ALTER TABLE insumos ADD COLUMN categoria_id INTEGER REFERENCES categorias (id);
+      CREATE INDEX idx_insumos_categoria ON insumos (categoria_id);
+
+      UPDATE insumos SET categoria_id = (
+        SELECT c.id FROM regras_categoria r JOIN categorias c ON c.nome = r.nome
+         WHERE lower(trim(insumos.nome)) LIKE r.padrao
+         ORDER BY r.ordem LIMIT 1
+      );
+
+      INSERT INTO categorias (nome, criado_em, atualizado_em)
+        SELECT 'Outros', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE EXISTS (SELECT 1 FROM insumos WHERE categoria_id IS NULL);
+      UPDATE insumos SET categoria_id = (SELECT id FROM categorias WHERE nome = 'Outros') WHERE categoria_id IS NULL;
+
+      DROP TABLE regras_categoria;
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

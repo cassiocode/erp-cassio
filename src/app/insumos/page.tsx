@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { formatarMargem, precoComMargem } from "@/lib/custos";
+import { listarCategorias } from "@/lib/db/repositories/categorias";
 import { listarInsumos } from "@/lib/db/repositories/insumos";
 import { formatarReais } from "@/lib/dinheiro";
 import BotaoAtivar from "../_components/BotaoAtivar";
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Promise<{ busca?: string; status?: string }>;
+type SearchParams = Promise<{ busca?: string; status?: string; categoria?: string }>;
 
 export default async function InsumosPage({ searchParams }: { searchParams: SearchParams }) {
-  const { busca = "", status = "ativos" } = await searchParams;
+  const { busca = "", status = "ativos", categoria = "" } = await searchParams;
+  const categorias = listarCategorias();
+  const categoriaId = Number(categoria) || undefined;
 
   const insumos = listarInsumos({
     busca,
+    categoria_id: categoriaId,
     ativo: status === "ativos" ? 1 : status === "inativos" ? 0 : undefined,
   });
 
@@ -42,6 +46,17 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
           <input name="busca" defaultValue={busca} placeholder="Ex.: caneca" className={campo} />
         </label>
         <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Categoria</span>
+          <select name="categoria" defaultValue={categoriaId ?? ""} className={campo}>
+            <option value="">Todas</option>
+            {categorias.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
           <span className="mb-1 block text-gray-600">Situação</span>
           <select name="status" defaultValue={status} className={campo}>
             <option value="ativos">Ativos</option>
@@ -62,6 +77,7 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
           <thead className="border-b border-gray-200 bg-gray-100 text-gray-600">
             <tr>
               <th className="px-3 py-2">Nome</th>
+              <th className="px-3 py-2">Categoria</th>
               <th className="px-3 py-2 text-right">Custo médio</th>
               <th className="px-3 py-2 text-right">Margem</th>
               <th className="px-3 py-2 text-right">Preço un. total</th>
@@ -74,7 +90,7 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
           <tbody>
             {insumos.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={9} className="px-3 py-6 text-center text-gray-500">
                   Nenhum insumo encontrado.
                 </td>
               </tr>
@@ -84,6 +100,9 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
                 <td className="px-3 py-2">
                   <div className="font-medium">{i.nome}</div>
                   {i.observacao && <div className="text-xs text-gray-500">{i.observacao}</div>}
+                </td>
+                <td className="px-3 py-2">
+                  {i.categoria_nome ?? <span className="font-medium text-red-600">Sem categoria</span>}
                 </td>
                 <td className="px-3 py-2 text-right font-medium">
                   {i.custo_unitario_centavos === null ? "—" : formatarReais(i.custo_unitario_centavos)}

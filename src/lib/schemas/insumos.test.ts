@@ -17,6 +17,7 @@ describe("novoInsumoSchema", () => {
     quantidade_comprada: "12",
     data_compra: "2026-11-01",
     observacao: "Cerâmica AAA",
+    categoria_id: "3",
   };
 
   it("aceita dados do formulário e converte para o formato do banco", () => {
@@ -26,17 +27,19 @@ describe("novoInsumoSchema", () => {
       quantidade_comprada: 12,
       data_compra: "2026-11-01",
       observacao: "Cerâmica AAA",
+      categoria_id: 3,
       margem_lucro_percentual: null,
     });
   });
 
   it("usa padrões: quantidade 1, data de hoje, observação vazia vira null", () => {
-    expect(novoInsumoSchema.parse({ nome: "Bombom", valor_pago: 1.5, observacao: "  " })).toEqual({
+    expect(novoInsumoSchema.parse({ nome: "Bombom", valor_pago: 1.5, observacao: "  ", categoria_id: 2 })).toEqual({
       nome: "Bombom",
       valor_pago_centavos: 150,
       quantidade_comprada: 1,
       data_compra: hojeISO(),
       observacao: null,
+      categoria_id: 2,
       margem_lucro_percentual: null,
     });
   });
@@ -54,6 +57,11 @@ describe("novoInsumoSchema", () => {
     const erros = errosDe(novoInsumoSchema, { nome: " ", valor_pago: "" });
     expect(erros.nome).toBe("O nome é obrigatório");
     expect(erros.valor_pago).toMatch(/Valor inválido/);
+    expect(erros.categoria_id).toBe("Escolha a categoria");
+  });
+
+  it("exige a categoria", () => {
+    expect(errosDe(novoInsumoSchema, { ...valido, categoria_id: "" }).categoria_id).toBe("Escolha a categoria");
   });
 
   it("rejeita total negativo, quantidade zero/fracionada e data inválida", () => {
@@ -70,15 +78,15 @@ describe("novoInsumoSchema", () => {
 
 describe("edicaoInsumoSchema", () => {
   it("aceita estoque negativo, mas não fracionado", () => {
-    expect(edicaoInsumoSchema.parse({ nome: "Caneca", quantidade_estoque: "-3" }).quantidade_estoque).toBe(-3);
-    expect(errosDe(edicaoInsumoSchema, { nome: "Caneca", quantidade_estoque: "1.5" }).quantidade_estoque).toMatch(
+    expect(edicaoInsumoSchema.parse({ nome: "Caneca", categoria_id: 1, quantidade_estoque: "-3" }).quantidade_estoque).toBe(-3);
+    expect(errosDe(edicaoInsumoSchema, { nome: "Caneca", categoria_id: 1, quantidade_estoque: "1.5" }).quantidade_estoque).toMatch(
       /inteiro/,
     );
   });
 
   it("margem vazia tira a margem", () => {
-    expect(edicaoInsumoSchema.parse({ nome: "Trufa", quantidade_estoque: 1, margem_lucro: "" }).margem_lucro_percentual).toBeNull();
-    expect(edicaoInsumoSchema.parse({ nome: "Trufa", quantidade_estoque: 1, margem_lucro: 50 }).margem_lucro_percentual).toBe(50);
+    expect(edicaoInsumoSchema.parse({ nome: "Trufa", categoria_id: 1, quantidade_estoque: 1, margem_lucro: "" }).margem_lucro_percentual).toBeNull();
+    expect(edicaoInsumoSchema.parse({ nome: "Trufa", categoria_id: 1, quantidade_estoque: 1, margem_lucro: 50 }).margem_lucro_percentual).toBe(50);
   });
 });
 
