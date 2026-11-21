@@ -4,6 +4,7 @@ import { criarCategoria } from "./categorias";
 import { registrarCompra } from "./compras";
 import { buscarInsumoPorId, criarInsumo } from "./insumos";
 import {
+  alterarDataPrevista,
   apagarVenda,
   buscarVenda,
   calcularFaltas,
@@ -378,5 +379,25 @@ describe("faltas por categoria", () => {
       ["Caneca branca 325ml", "Caneca cor branca"],
       ["Caixa para caneca de porcelana 325ml", "Caixa para caneca"],
     ]);
+  });
+});
+
+describe("alterar data de entrega", () => {
+  it("muda a data da pré-venda sem mexer no estoque e reordena as faltas", () => {
+    const pre = (cliente: string, data: string, qtd: number) =>
+      registrarVenda(venda({ status: "pre_venda", cliente, data_prevista: data, itens: [{ insumo_id: laco, quantidade: qtd }] })).id;
+    const ana = pre("Ana", "2026-11-20", 6);
+    const bia = pre("Bia", "2026-11-25", 6); // laço 10 -> -2: falta fica com a Bia (entrega depois)
+    expect(calcularFaltas().map((f) => f.venda_id)).toEqual([bia]);
+
+    expect(alterarDataPrevista(bia, "2026-11-18")?.data_prevista).toBe("2026-11-18");
+    expect(buscarInsumoPorId(laco)?.quantidade_estoque).toBe(-2);
+    expect(calcularFaltas().map((f) => f.venda_id)).toEqual([ana]); // agora a Ana entrega por último
+  });
+
+  it("não muda a data de venda concluída; inexistente = null", () => {
+    const { id } = registrarVenda(venda());
+    expect(() => alterarDataPrevista(id, "2026-12-01")).toThrow(StatusInvalidoError);
+    expect(alterarDataPrevista(9999, "2026-12-01")).toBeNull();
   });
 });

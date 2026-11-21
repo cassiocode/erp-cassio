@@ -116,3 +116,9 @@ export const alertaEstoqueSchema = z.object({
   cliente: textoOpcional("O cliente", 120),
   itens: itensSchema,
 });
+
+/** Nova data de entrega (tela de entregas). */
+export const dataEntregaSchema = z
+  .string({ error: "Informe a nova data de entrega" })
+  .trim()
+  .refine((v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)), "Data de entrega inválida");

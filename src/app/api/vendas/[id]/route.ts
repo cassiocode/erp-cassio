@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { lerCorpo, lerId, respostaErros, respostaIdInvalido, respostaNaoEncontrado } from "@/lib/api";
 import { hojeISO } from "@/lib/datas";
 import {
+  alterarDataPrevista,
   apagarVenda,
   buscarVenda,
   concluirVenda,
@@ -10,7 +11,7 @@ import {
   StatusInvalidoError,
 } from "@/lib/db/repositories/vendas";
 import { errosPorCampo } from "@/lib/schemas/comum";
-import { vendaSchema } from "@/lib/schemas/vendas";
+import { dataEntregaSchema, vendaSchema } from "@/lib/schemas/vendas";
 
 export const dynamic = "force-dynamic";
 
@@ -43,11 +44,25 @@ export async function PUT(request: Request, { params }: Contexto) {
   }
 }
 
-// PATCH /api/vendas/:id {"status":"concluida"} — conclui (entrega) o rascunho ou a pré-venda
+/**
+ * PATCH /api/vendas/:id
+ * - {"status":"concluida"} — conclui (entrega) o rascunho ou a pré-venda
+ * - {"data_prevista":"AAAA-MM-DD"} — muda a data de entrega (tela de entregas)
+ */
 export async function PATCH(request: Request, { params }: Contexto) {
   const id = lerId((await params).id);
   if (id === null) return respostaIdInvalido();
-  const corpo = (await lerCorpo(request)) as { status?: unknown };
+  const corpo = (await lerCorpo(request)) as { status?: unknown; data_prevista?: unknown };
+  if (corpo.data_prevista !== undefined) {
+    const data = dataEntregaSchema.safeParse(corpo.data_prevista);
+    if (!data.success) return respostaErros({ data_prevista: data.error.issues[0].message }, 400);
+    try {
+      const venda = alterarDataPrevista(id, data.data);
+      return venda ? NextResponse.json(venda) : respostaNaoEncontrado("Venda", "a");
+    } catch (erro) {
+      return tratarErro(erro);
+    }
+  }
   if (corpo.status !== "concluida") return respostaErros({ status: "Só é possível concluir a venda" }, 400);
   try {
     const venda = concluirVenda(id, hojeISO());

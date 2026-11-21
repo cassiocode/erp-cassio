@@ -19,6 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/vendas" className={link}>
               Vendas
             </Link>
+            <Link href="/entregas" className={link}>
+              Entregas
+            </Link>
             <Link href="/insumos" className={link}>
               Insumos
             </Link>

@@ -35,6 +35,9 @@ Abra http://localhost:3000 (vai para `/insumos`).
   insumos do estoque e guarda o custo do dia; apagar a venda devolve os insumos.
   Insumos com **margem de lucro** (definida no cadastro do insumo) somam no preço quando adicionados fora do
   kit: custo × (1 + margem). Ex.: trufa de R$ 5,99 com 50% soma R$ 8,99.
+- **Entregas** (`/entregas`): as pré-vendas a entregar, pela data mais próxima (atrasada, hoje, amanhã...),
+  com material OK/sem material e quanto falta receber. **Concluir** = entregou (vira venda, sem tirar do
+  estoque de novo). **Alterar** = informar a nova data de entrega.
 - **Insumos** (`/insumos`): itens que compõem o custo dos produtos (canecas branca e preta, caixas,
   embalagens, papel, tinta, brindes). No cadastro você informa a primeira compra: **total pago** e
   **quantidade comprada** (ex.: 12 canecas por R$ 126,00 = R$ 10,50 cada). Ao digitar o nome, aparecem

@@ -341,6 +341,18 @@ export function concluirVenda(id: number, dataConclusao: string): VendaComItens 
 }
 
 /**
+ * Muda só a data prevista de entrega (pré-venda ou rascunho). Não mexe no estoque; a ordem das
+ * pré-vendas (e quem fica sem material) passa a usar a data nova. Null se não existe.
+ */
+export function alterarDataPrevista(id: number, dataPrevista: string): VendaComItens | null {
+  const venda = buscarVenda(id);
+  if (!venda) return null;
+  if (venda.status === "concluida") throw new StatusInvalidoError("A venda já foi entregue (concluída)");
+  getDb().prepare("UPDATE vendas SET data_prevista = ? WHERE id = ?").run(dataPrevista, id);
+  return buscarVenda(id);
+}
+
+/**
  * Cancela a venda ou pré-venda (os insumos que ela tirou voltam para o estoque) ou apaga o rascunho
  * (que não tinha mexido no estoque).
  */
