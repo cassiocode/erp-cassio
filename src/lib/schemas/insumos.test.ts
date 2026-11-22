@@ -29,6 +29,8 @@ describe("novoInsumoSchema", () => {
       observacao: "Cerâmica AAA",
       categoria_id: 3,
       margem_lucro_percentual: null,
+      entregue: true,
+      data_prevista_entrega: null,
     });
   });
 
@@ -41,6 +43,8 @@ describe("novoInsumoSchema", () => {
       observacao: null,
       categoria_id: 2,
       margem_lucro_percentual: null,
+      entregue: true,
+      data_prevista_entrega: null,
     });
   });
 
@@ -97,7 +101,19 @@ describe("compraSchema", () => {
       quantidade: 12,
       valor_pago_centavos: 14400,
       observacao: null,
+      entregue: true,
+      data_prevista_entrega: null,
     });
+  });
+
+  it("compra pendente de entrega exige a previsão", () => {
+    const base = { data_compra: "2026-11-10", quantidade: "12", valor_pago: "144", entregue: false };
+    expect(errosDe(compraSchema, base).data_prevista_entrega).toBe("Informe a previsão de entrega");
+    expect(compraSchema.parse({ ...base, data_prevista_entrega: "2026-11-30" })).toMatchObject({
+      entregue: false,
+      data_prevista_entrega: "2026-11-30",
+    });
+    expect(errosDe(compraSchema, { ...base, data_prevista_entrega: "30/11/2026" }).data_prevista_entrega).toBe("Data inválida");
   });
 
   it("exige quantidade e total pago", () => {

@@ -19,6 +19,9 @@ export interface Insumo {
   total_pago_centavos: number;
   quantidade_comprada: number;
   custo_unitario_centavos: number | null; // custo médio; null se não há compras
+  // Compras pendentes de entrega (ainda não estão no estoque)
+  quantidade_pendente: number; // total pendente de entrada
+  proxima_entrega: string | null; // previsão de entrega mais próxima das compras pendentes
 }
 
 /** Cadastro de insumo novo: o total pago e a quantidade viram a primeira compra. */
@@ -30,6 +33,8 @@ export interface DadosNovoInsumo {
   observacao: string | null;
   margem_lucro_percentual?: number | null;
   categoria_id?: number | null;
+  entregue?: boolean; // a primeira compra já chegou? (ausente = sim)
+  data_prevista_entrega?: string | null; // previsão, se ainda não chegou
 }
 
 /** Edição: total pago e quantidade mudam só pelas compras. */
@@ -53,7 +58,9 @@ const SELECT_INSUMO = `
   SELECT i.*,
          (SELECT cat.nome FROM categorias cat WHERE cat.id = i.categoria_id) AS categoria_nome,
          COALESCE(SUM(c.valor_pago_centavos), 0) AS total_pago_centavos,
-         COALESCE(SUM(c.quantidade), 0) AS quantidade_comprada
+         COALESCE(SUM(c.quantidade), 0) AS quantidade_comprada,
+         COALESCE(SUM(CASE WHEN c.entregue = 0 THEN c.quantidade END), 0) AS quantidade_pendente,
+         MIN(CASE WHEN c.entregue = 0 THEN c.data_prevista_entrega END) AS proxima_entrega
     FROM insumos i
     LEFT JOIN compras_insumo c ON c.insumo_id = i.id`;
 
@@ -125,6 +132,8 @@ export function criarInsumo(dados: DadosNovoInsumo): Insumo {
         quantidade: dados.quantidade_comprada,
         valor_pago_centavos: dados.valor_pago_centavos,
         observacao: null,
+        entregue: dados.entregue,
+        data_prevista_entrega: dados.data_prevista_entrega,
       });
       return novoId;
     });

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatarMargem, precoComMargem } from "@/lib/custos";
 import { listarCategorias } from "@/lib/db/repositories/categorias";
 import { listarInsumos } from "@/lib/db/repositories/insumos";
+import { formatarData } from "@/lib/datas";
 import { formatarReais } from "@/lib/dinheiro";
 import BotaoAtivar from "../_components/BotaoAtivar";
 
@@ -83,6 +84,7 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
               <th className="px-3 py-2 text-right">Preço un. total</th>
               <th className="px-3 py-2 text-right">Comprados</th>
               <th className="px-3 py-2 text-right">Em estoque</th>
+              <th className="px-3 py-2">Entrega</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2 text-right">Ações</th>
             </tr>
@@ -90,7 +92,7 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
           <tbody>
             {insumos.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={10} className="px-3 py-6 text-center text-gray-500">
                   Nenhum insumo encontrado.
                 </td>
               </tr>
@@ -129,6 +131,19 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
                   className={`px-3 py-2 text-right ${i.quantidade_estoque < 0 ? "font-medium text-red-600" : ""}`}
                 >
                   {i.quantidade_estoque}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2">
+                  {i.quantidade_pendente > 0 ? (
+                    <Link href={`/insumos/${i.id}/compras`} className="block hover:underline">
+                      <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Pendente</span>
+                      <div className="text-xs text-amber-800">
+                        {i.quantidade_pendente} a chegar
+                        {i.proxima_entrega && <> · prev. {formatarData(i.proxima_entrega)}</>}
+                      </div>
+                    </Link>
+                  ) : (
+                    <span className="text-xs text-gray-500">Realizada</span>
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <span

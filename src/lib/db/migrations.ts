@@ -380,6 +380,19 @@ const migrations: Migration[] = [
       ALTER TABLE kit_itens_novo RENAME TO kit_itens;
     `,
   },
+  {
+    versao: 15,
+    nome: "entrega_da_compra",
+    sql: `
+      -- Compra pendente de entrega (o fornecedor ainda não entregou) não soma ao estoque; quando chega
+      -- (entregue = 1) a quantidade entra no estoque. As compras antigas já estão no estoque: entregues.
+      ALTER TABLE compras_insumo ADD COLUMN entregue INTEGER NOT NULL DEFAULT 1 CHECK (entregue IN (0, 1));
+      ALTER TABLE compras_insumo ADD COLUMN data_prevista_entrega TEXT; -- AAAA-MM-DD
+      ALTER TABLE compras_insumo ADD COLUMN data_entrega TEXT; -- AAAA-MM-DD, quando chegou
+      UPDATE compras_insumo SET data_entrega = data_compra;
+      CREATE INDEX idx_compras_insumo_pendentes ON compras_insumo (entregue, data_prevista_entrega);
+    `,
+  },
 ];
 
 /** Aplica as migrations pendentes. `ateVersao` existe só para testar a migração passo a passo. */

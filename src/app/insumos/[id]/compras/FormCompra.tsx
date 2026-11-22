@@ -3,14 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { hojeISO } from "@/lib/datas";
-import CamposCompra, { type ValoresCompra } from "../../_components/CamposCompra";
+import CamposCompra, { compraVazia, entregaParaApi, type ValoresCompra } from "../../_components/CamposCompra";
 
 const campo =
   "w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";
 
-const VAZIO = (): ValoresCompra => ({ data_compra: hojeISO(), valor_pago: "", quantidade: "1" });
+const VAZIO = (): ValoresCompra => compraVazia(hojeISO());
 
-/** Lança uma nova compra do insumo; a quantidade soma ao estoque. */
+/** Lança uma nova compra do insumo; a quantidade soma ao estoque quando a compra já chegou. */
 export default function FormCompra({ insumoId }: { insumoId: number }) {
   const router = useRouter();
   const [compra, setCompra] = useState<ValoresCompra>(VAZIO);
@@ -26,7 +26,13 @@ export default function FormCompra({ insumoId }: { insumoId: number }) {
       const resposta = await fetch(`/api/insumos/${insumoId}/compras`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...compra, observacao }),
+        body: JSON.stringify({
+          data_compra: compra.data_compra,
+          valor_pago: compra.valor_pago,
+          quantidade: compra.quantidade,
+          ...entregaParaApi(compra),
+          observacao,
+        }),
       });
       if (resposta.ok) {
         setCompra(VAZIO());

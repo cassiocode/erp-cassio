@@ -6,6 +6,25 @@ export interface ValoresCompra {
   data_compra: string; // AAAA-MM-DD
   valor_pago: string; // texto, ex.: "126,00"
   quantidade: string;
+  entregue: "sim" | "nao"; // a compra já chegou? "nao" = pendente de entrega (não entra no estoque)
+  data_prevista_entrega: string; // AAAA-MM-DD, só se pendente
+}
+
+/** Valores iniciais de uma compra nova (já chegou, hoje). */
+export const compraVazia = (hoje: string): ValoresCompra => ({
+  data_compra: hoje,
+  valor_pago: "",
+  quantidade: "1",
+  entregue: "sim",
+  data_prevista_entrega: "",
+});
+
+/** Campos de entrega no formato da API. */
+export function entregaParaApi(v: ValoresCompra) {
+  return {
+    entregue: v.entregue === "sim",
+    data_prevista_entrega: v.entregue === "sim" ? null : v.data_prevista_entrega || null,
+  };
 }
 
 /** Custo por unidade para mostrar enquanto digita; null se ainda não dá para calcular. */
@@ -70,6 +89,47 @@ export default function CamposCompra({
           />
           {mensagem(campoQuantidade)}
         </label>
+      </div>
+      <div className="mt-4 flex flex-wrap items-end gap-4 rounded border border-gray-200 bg-gray-50 p-3 text-sm">
+        <fieldset>
+          <legend className="mb-1 font-medium">Entrega realizada?</legend>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-1">
+              <input
+                type="radio"
+                checked={valores.entregue === "sim"}
+                onChange={() => aoMudar("entregue", "sim")}
+              />
+              Sim, já chegou
+            </label>
+            <label className="flex items-center gap-1">
+              <input
+                type="radio"
+                checked={valores.entregue === "nao"}
+                onChange={() => aoMudar("entregue", "nao")}
+              />
+              Não, pendente de entrega
+            </label>
+          </div>
+        </fieldset>
+        {valores.entregue === "nao" && (
+          <label className="block">
+            <span className="mb-1 block font-medium">Previsão de entrega *</span>
+            <input
+              type="date"
+              value={valores.data_prevista_entrega}
+              onChange={(e) => aoMudar("data_prevista_entrega", e.target.value)}
+              required
+              className={className}
+            />
+            {mensagem("data_prevista_entrega")}
+          </label>
+        )}
+        <p className="w-full text-xs text-gray-500">
+          {valores.entregue === "sim"
+            ? "A quantidade entra no estoque agora."
+            : "Não entra no estoque até você marcar \"Chegou\" na tela de compras do insumo."}
+        </p>
       </div>
       <p className="mt-3 text-sm text-gray-600">
         Custo por unidade nesta compra:{" "}

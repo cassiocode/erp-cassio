@@ -32,6 +32,23 @@ const dataCompra = z
   .transform((v) => v || hojeISO())
   .refine((v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)), "Data inválida");
 
+/** "Já chegou?" (padrão: sim). */
+const entregue = z.boolean({ error: "Informe se a compra já chegou" }).default(true);
+
+const dataPrevistaEntrega = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((v) => v || null)
+  .refine((v) => v === null || (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))), "Data inválida");
+
+/** Compra pendente de entrega precisa da previsão; a que já chegou não guarda previsão. */
+function exigirPrevisao(dados: { entregue: boolean; data_prevista_entrega: string | null }, ctx: z.RefinementCtx) {
+  if (!dados.entregue && !dados.data_prevista_entrega) {
+    ctx.addIssue({ code: "custom", path: ["data_prevista_entrega"], message: "Informe a previsão de entrega" });
+  }
+}
+
 const observacao = z
   .string()
   .trim()
@@ -70,7 +87,10 @@ export const novoInsumoSchema = z
     observacao,
     margem_lucro: margemLucro,
     categoria_id: categoria,
+    entregue,
+    data_prevista_entrega: dataPrevistaEntrega,
   })
+  .superRefine(exigirPrevisao)
   .transform(({ valor_pago, margem_lucro, ...resto }) => ({
     ...resto,
     valor_pago_centavos: valor_pago,
@@ -97,5 +117,11 @@ export const compraSchema = z
     quantidade: quantidadeComprada,
     valor_pago: valorPago,
     observacao,
+    entregue,
+    data_prevista_entrega: dataPrevistaEntrega,
   })
+  .superRefine(exigirPrevisao)
   .transform(({ valor_pago, ...resto }) => ({ ...resto, valor_pago_centavos: valor_pago }));
+
+/** Data da entrega/previsão na tela de compras (vazio = hoje). */
+export const dataEntregaCompraSchema = dataCompra;

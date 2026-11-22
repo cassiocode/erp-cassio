@@ -48,6 +48,9 @@ Abra http://localhost:3000 (vai para `/insumos`).
   categorias aqui; a lista mostra quantos insumos ativos e o estoque somado de cada uma.
 - **Compras do insumo** (`/insumos/:id/compras`): lance novas compras (8 em estoque + 12 comprados = 20).
   O custo do insumo é a **média ponderada** das compras. Apagar uma compra tira a quantidade do estoque.
+  Cada compra diz se a **entrega foi realizada**. Compra **pendente de entrega** (com previsão) **não conta
+  no estoque** até você clicar em **Chegou**; dá para **alterar a previsão**. A lista de insumos mostra o
+  total pendente e a próxima previsão. O custo médio já considera as compras pendentes (já foram pagas).
 
 - **Baixas** (`/baixas`): tira insumos do estoque sem venda (estrago, quebra...), com quantidade e motivo
   em texto livre. Guarda o custo médio do dia (para o futuro dashboard). Apagar a baixa devolve ao estoque.

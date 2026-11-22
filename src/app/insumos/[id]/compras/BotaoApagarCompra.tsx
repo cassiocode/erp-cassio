@@ -3,13 +3,22 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-/** Apaga a compra (pede confirmação). A quantidade dela sai do estoque. */
-export default function BotaoApagarCompra({ id, descricao }: { id: number; descricao: string }) {
+/** Apaga a compra (pede confirmação). Se já tinha chegado, a quantidade dela sai do estoque. */
+export default function BotaoApagarCompra({
+  id,
+  descricao,
+  entregue = true,
+}: {
+  id: number;
+  descricao: string;
+  entregue?: boolean;
+}) {
   const router = useRouter();
   const [apagando, setApagando] = useState(false);
 
   async function apagar() {
-    if (!confirm(`Apagar a compra ${descricao}?\nA quantidade sai do estoque e não dá para desfazer.`)) return;
+    const efeito = entregue ? "A quantidade sai do estoque e não dá para desfazer." : "Ela ainda não tinha chegado: o estoque não muda.";
+    if (!confirm(`Apagar a compra ${descricao}?\n${efeito}`)) return;
     setApagando(true);
     try {
       const resposta = await fetch(`/api/compras/${id}`, { method: "DELETE" });

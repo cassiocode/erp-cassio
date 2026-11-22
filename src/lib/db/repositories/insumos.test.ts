@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "../connection";
 import { NomeDuplicadoError } from "../erros";
-import { apagarCompra, listarCompras, registrarCompra, type DadosCompra } from "./compras";
+import {
+  alterarPrevisaoCompra,
+  apagarCompra,
+  CompraInvalidaError,
+  listarCompras,
+  marcarCompraEntregue,
+  registrarCompra,
+  type DadosCompra,
+} from "./compras";
 import {
   atualizarInsumo,
   buscarInsumoPorId,
@@ -205,5 +213,50 @@ describe("insumos: inativar e reativar", () => {
 
   it("devolve null para id inexistente", () => {
     expect(definirInsumoAtivo(9999, false)).toBeNull();
+  });
+});
+
+describe("compra pendente de entrega", () => {
+  it("não soma ao estoque até chegar; o insumo mostra o total pendente e a previsão", () => {
+    const { id } = criarInsumo(novo()); // 12 em estoque
+    registrarCompra(id, compra({ quantidade: 6, entregue: false, data_prevista_entrega: "2026-11-30" }));
+    registrarCompra(id, compra({ quantidade: 4, entregue: false, data_prevista_entrega: "2026-11-25" }));
+    const insumo = buscarInsumoPorId(id)!;
+    expect(insumo.quantidade_estoque).toBe(12);
+    expect(insumo.quantidade_pendente).toBe(10);
+    expect(insumo.proxima_entrega).toBe("2026-11-25");
+    // Pendentes primeiro, pela previsão mais próxima
+    expect(listarCompras(id).map((c) => [c.entregue, c.quantidade])).toEqual([
+      [0, 4],
+      [0, 6],
+      [1, 12],
+    ]);
+  });
+
+  it("marcar como entregue soma ao estoque (uma vez só)", () => {
+    const { id } = criarInsumo(novo());
+    const pendente = registrarCompra(id, compra({ quantidade: 6, entregue: false, data_prevista_entrega: "2026-11-30" }))!;
+    expect(marcarCompraEntregue(pendente.id, "2026-11-28")).toMatchObject({ entregue: 1, data_entrega: "2026-11-28" });
+    expect(buscarInsumoPorId(id)).toMatchObject({ quantidade_estoque: 18, quantidade_pendente: 0, proxima_entrega: null });
+    expect(() => marcarCompraEntregue(pendente.id, "2026-11-29")).toThrow(CompraInvalidaError);
+    expect(marcarCompraEntregue(9999, "2026-11-29")).toBeNull();
+  });
+
+  it("altera a previsão; apagar compra pendente não mexe no estoque", () => {
+    const { id } = criarInsumo(novo());
+    const pendente = registrarCompra(id, compra({ quantidade: 6, entregue: false, data_prevista_entrega: "2026-11-30" }))!;
+    expect(alterarPrevisaoCompra(pendente.id, "2026-12-05")?.data_prevista_entrega).toBe("2026-12-05");
+    expect(apagarCompra(pendente.id)).toBe(true);
+    expect(buscarInsumoPorId(id)).toMatchObject({ quantidade_estoque: 12, quantidade_pendente: 0 });
+  });
+
+  it("cadastro com a primeira compra ainda não entregue começa com estoque 0", () => {
+    const insumo = criarInsumo(novo({ entregue: false, data_prevista_entrega: "2026-12-01" }));
+    expect(insumo).toMatchObject({ quantidade_estoque: 0, quantidade_pendente: 12, proxima_entrega: "2026-12-01" });
+  });
+
+  it("compra que já chegou guarda a data de entrega = data da compra", () => {
+    const { id } = criarInsumo(novo());
+    expect(listarCompras(id)[0]).toMatchObject({ entregue: 1, data_entrega: "2026-11-01", data_prevista_entrega: null });
   });
 });

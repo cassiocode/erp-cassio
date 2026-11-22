@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { hojeISO } from "@/lib/datas";
 import { formatarReais } from "@/lib/dinheiro";
-import CamposCompra, { type ValoresCompra } from "./CamposCompra";
+import CamposCompra, { compraVazia, entregaParaApi, type ValoresCompra } from "./CamposCompra";
 import CampoNomeComSugestoes, { type SugestaoInsumo } from "./CampoNomeComSugestoes";
 
 /** Dados já gravados do insumo, para a tela de edição. */
@@ -48,7 +48,7 @@ export default function FormInsumo({
   const [categoriaId, setCategoriaId] = useState(insumo?.categoria_id ? String(insumo.categoria_id) : "");
   const [observacao, setObservacao] = useState(insumo?.observacao ?? "");
   const [estoque, setEstoque] = useState(String(insumo?.quantidade_estoque ?? 0));
-  const [compra, setCompra] = useState<ValoresCompra>({ data_compra: hojeISO(), valor_pago: "", quantidade: "1" });
+  const [compra, setCompra] = useState<ValoresCompra>(() => compraVazia(hojeISO()));
   const [margem, setMargem] = useState(
     insumo?.margem_lucro_percentual == null ? "" : String(insumo.margem_lucro_percentual).replace(".", ","),
   );
@@ -70,6 +70,7 @@ export default function FormInsumo({
           data_compra: compra.data_compra,
           valor_pago: compra.valor_pago,
           quantidade_comprada: compra.quantidade,
+          ...entregaParaApi(compra),
         };
 
     try {
@@ -170,7 +171,9 @@ export default function FormInsumo({
             campoQuantidade="quantidade_comprada"
             className={campo}
           />
-          <p className="mt-2 text-xs text-gray-500">O estoque começa com a quantidade comprada.</p>
+          <p className="mt-2 text-xs text-gray-500">
+            O estoque começa com a quantidade comprada (ou com 0, se a compra ainda não chegou).
+          </p>
         </fieldset>
       )}
 
