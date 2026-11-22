@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { CUSTO_ENERGIA_CENTAVOS, formatarMargem, precoComMargem } from "@/lib/custos";
 import { buscarFaltas, chaveMaterial, textoAlertaFaltas } from "@/lib/alertas";
-import { hojeISO } from "@/lib/datas";
+import { formatarData, hojeISO } from "@/lib/datas";
 import { descontoProgressivo, lerPercentual, valorDesconto } from "@/lib/descontos";
 import { centavosParaTexto, formatarReais, paraCentavos } from "@/lib/dinheiro";
 
@@ -260,11 +260,29 @@ export default function FormVenda({
     setNovoInsumo("");
   }
 
+  // Venda (entregue) com data no futuro: provavelmente era para ser pré-venda
+  const vendaFutura = status === "concluida" && data > hojeISO();
+
+  /** A data digitada vira a entrega prevista; o pedido fica com a data de hoje. */
+  function virarPreVenda() {
+    setDataPrevista(data);
+    setData(hojeISO());
+    setStatus("pre_venda");
+  }
+
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
     setEnviando(true);
     setErros({});
     try {
+      if (
+        vendaFutura &&
+        !confirm(
+          `A data da venda (${formatarData(data)}) é no futuro, mas "Venda" é para o que já foi entregue.\n` +
+            `Para entregar depois, use "Pré-venda" (aparece em Entregas).\n\nRegistrar como venda mesmo assim?`,
+        )
+      )
+        return;
       const prevista = status === "concluida" ? null : dataPrevista || null;
       // Antes de tirar do estoque, avisa se vai faltar material para alguma pré-venda (ou para esta)
       if (status !== "rascunho") {
@@ -644,6 +662,15 @@ export default function FormVenda({
           <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={campo} />
           {mensagem("data_venda")}
         </label>
+        {vendaFutura && (
+          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:col-span-3">
+            ⚠️ A data da venda ({formatarData(data)}) é no futuro. &quot;Venda&quot; é para o que já foi entregue e não
+            aparece em Entregas.{" "}
+            <button type="button" onClick={virarPreVenda} className="font-medium text-blue-700 hover:underline">
+              Transformar em pré-venda com entrega em {formatarData(data)}
+            </button>
+          </div>
+        )}
         {status !== "concluida" && (
           <label className="block text-sm">
             <span className="mb-1 block font-medium">Entrega prevista{status === "pre_venda" ? " *" : ""}</span>
