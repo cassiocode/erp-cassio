@@ -6,7 +6,8 @@ import FormCategoria from "./FormCategoria";
 
 export const dynamic = "force-dynamic";
 
-export default function CategoriasPage() {
+export default async function CategoriasPage({ searchParams }: { searchParams: Promise<{ nova?: string }> }) {
+  const nova = Number((await searchParams).nova) || null;
   const categorias = listarCategorias();
 
   return (
@@ -41,8 +42,14 @@ export default function CategoriasPage() {
               </tr>
             )}
             {categorias.map((c) => (
-              <tr key={c.id} className={`border-b border-gray-100 ${c.ativo ? "" : "text-gray-400"}`}>
-                <td className="px-3 py-2 font-medium">{c.nome}</td>
+              <tr
+                key={c.id}
+                className={`border-b border-gray-100 ${c.ativo ? "" : "text-gray-400"} ${c.id === nova ? "bg-green-50" : ""}`}
+              >
+                <td className="px-3 py-2 font-medium">
+                  {c.nome}
+                  {c.id === nova && <span className="ml-2 rounded bg-green-600 px-2 py-0.5 text-xs text-white">nova</span>}
+                </td>
                 <td className="px-3 py-2 text-right">
                   <Link href={`/insumos?categoria=${c.id}`} className="text-blue-700 hover:underline">
                     {c.quantidade_insumos}
