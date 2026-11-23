@@ -33,12 +33,20 @@ export default async function InsumosPage({ searchParams }: { searchParams: Sear
             Itens que compõem o custo dos produtos: canecas, embalagens, papel, tinta, brindes...
           </p>
         </div>
+        <div className="flex gap-2">
+        <Link
+          href="/insumos/kits"
+          className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+        >
+          Padrão da venda
+        </Link>
         <Link
           href="/insumos/novo"
           className="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
         >
           Novo insumo
         </Link>
+        </div>
       </div>
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-3">

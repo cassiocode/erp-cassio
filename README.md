@@ -43,6 +43,9 @@ Abra http://localhost:3000 (vai para `/insumos`).
   **quantidade comprada** (ex.: 12 canecas por R$ 126,00 = R$ 10,50 cada). Ao digitar o nome, aparecem
   os insumos já cadastrados. A quantidade em estoque pode ficar negativa.
   Todo insumo tem uma **categoria** (obrigatória), com filtro na lista.
+- **Padrão da venda** (`/insumos/kits`, botão na tela de Insumos): os kits da nova venda. Para cada kit:
+  nome, preço por caneca, se aparece na venda e as **categorias com quantidade** que saem do estoque a cada
+  caneca (ex.: + 1 Sacola). Dá para criar kits novos. Vale para as próximas vendas; as gravadas não mudam.
 - **Categorias** (`/categorias`): o tipo do material, independente do fornecedor. Bases de caneca:
   **Caneca cor branca** e **Caneca Cor Preta c/ Tarja Branca** (Top, Trix...). Crie, renomeie e inative
   categorias aqui; a lista mostra quantos insumos ativos e o estoque somado de cada uma.
